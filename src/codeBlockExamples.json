@@ -1,0 +1,28 @@
+{
+  "map": [
+    {
+      "id": "coordinates",
+      "label": "Coordinates",
+      "labelKey": "markdown.examples.coordinates",
+      "code": "37.3349, -122.0090"
+    },
+    {
+      "id": "zoom",
+      "label": "Custom zoom",
+      "labelKey": "markdown.examples.zoom",
+      "code": "37.3349, -122.0090, 15"
+    },
+    {
+      "id": "savedPlace",
+      "label": "Saved place",
+      "labelKey": "markdown.examples.savedPlace",
+      "code": "place: Apple Park, Cupertino\nzoom: 14"
+    },
+    {
+      "id": "allPlaces",
+      "label": "All saved places",
+      "labelKey": "markdown.examples.allPlaces",
+      "code": "places: all"
+    }
+  ]
+}

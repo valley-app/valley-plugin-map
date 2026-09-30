@@ -1,0 +1,17 @@
+{
+  "apiVersion": 5,
+  "id": "map",
+  "name": "Map",
+  "version": "2.1.0",
+  "description": "Interactive map for favorite places and route planning: a left-sidebar list of saved places and routes, a full-workspace map, and a right-sidebar route planner with travel modes, distance/ETA and an elevation profile. Uses free providers by default; optional Mapbox, OpenRouteService, and community Map connections are managed under Accounts.",
+  "author": [
+    "valley"
+  ],
+  "authorUrl": [
+    "https://github.com/valley-app"
+  ],
+  "license": "MIT",
+  "minAppVersion": "0.1.0",
+  "isDesktopOnly": true,
+  "enabled": true
+}

@@ -1,0 +1,584 @@
+{
+  "icon": "icon.svg",
+  "main": "runtime/index.js",
+  "indexState": "scoped",
+  "uiSlots": {
+    "left_sidebar": "map.panel",
+    "main_workspace": "map.page",
+    "right_sidebar": "map.planner"
+  },
+  "slotDefaults": {
+    "left_sidebar": {
+      "order": 60
+    },
+    "right_sidebar": {
+      "order": 90,
+      "side": "hidden"
+    }
+  },
+  "drivers": [
+    "files"
+  ],
+  "provides": [
+    {
+      "id": "agent.toolProvider",
+      "kind": "service",
+      "version": "1.0.0"
+    },
+    {
+      "id": "metadata.plugin",
+      "kind": "extension",
+      "version": "1.0.0"
+    },
+    {
+      "id": "metadataPanel.segment",
+      "kind": "extension",
+      "version": "1.0.0"
+    },
+    {
+      "id": "geo.navigator",
+      "kind": "service",
+      "version": "1.0.0"
+    },
+    {
+      "id": "geo.search",
+      "kind": "service",
+      "version": "1.0.0"
+    },
+    {
+      "id": "workspace.surface",
+      "kind": "extension",
+      "version": "1.0.0"
+    },
+    {
+      "id": "workspace.details",
+      "kind": "extension",
+      "version": "1.0.0"
+    },
+    {
+      "id": "workspace.bookmark",
+      "kind": "service",
+      "version": "1.0.0"
+    }
+  ],
+  "showOnNewTab": true,
+  "settingsView": "map.settings",
+  "settingsSections": [
+    {
+      "id": "pins",
+      "label": "Map pins",
+      "labelKey": "plugin.map.section.pins",
+      "icon": "pin"
+    },
+    {
+      "id": "mapbox",
+      "label": "Mapbox",
+      "icon": "mapbox",
+      "visibleWhenSetting": "mapboxEnabled",
+      "labelKey": "auto.d983e02e49e4"
+    },
+    {
+      "id": "openrouteservice",
+      "label": "OpenRouteService",
+      "icon": "route",
+      "visibleWhenSetting": "openRouteServiceEnabled",
+      "labelKey": "auto.0a6ca730cc23"
+    },
+    {
+      "id": "embed",
+      "label": "Embed",
+      "labelKey": "embed.embed",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M3%209h18%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2212%22%20width%3D%227%22%20height%3D%226%22%20rx%3D%221%22%2F%3E%3C%2Fsvg%3E"
+    },
+    {
+      "id": "codeBlock",
+      "label": "Codeblock",
+      "labelKey": "embed.codeBlock",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22m9%209-3%203%203%203m6-6%203%203-3%203m-2-7-2%208%22%2F%3E%3C%2Fsvg%3E"
+    }
+  ],
+  "settingsSchema": {
+    "fields": [
+      {
+        "key": "defaultStyle",
+        "label": "Default basemap",
+        "type": "text",
+        "default": "streets",
+        "labelKey": "auto.9a227b2961d5"
+      },
+      {
+        "key": "basemapProvider",
+        "label": "Map provider",
+        "type": "text",
+        "default": "",
+        "labelKey": "surface.provider"
+      },
+      {
+        "key": "defaultCenter",
+        "label": "Default centre",
+        "type": "text",
+        "default": "8.5417,47.3769",
+        "labelKey": "auto.f4f3cea5d64a"
+      },
+      {
+        "key": "defaultZoom",
+        "label": "Default zoom",
+        "type": "number",
+        "default": 12,
+        "min": 0,
+        "max": 22,
+        "labelKey": "auto.84a3f17b629e"
+      },
+      {
+        "key": "offlineBasemapPath",
+        "label": "Offline basemap (.pmtiles)",
+        "type": "text",
+        "default": "",
+        "validate": "vault-file",
+        "labelKey": "auto.c8caf0a6cf35"
+      },
+      {
+        "key": "mapboxEnabled",
+        "label": "Mapbox",
+        "type": "boolean",
+        "default": false,
+        "labelKey": "auto.d983e02e49e4"
+      },
+      {
+        "key": "openRouteServiceEnabled",
+        "label": "OpenRouteService",
+        "type": "boolean",
+        "default": false,
+        "labelKey": "auto.0a6ca730cc23"
+      },
+      {
+        "key": "mapboxConnectionId",
+        "label": "Mapbox connection",
+        "type": "text",
+        "default": "",
+        "section": "mapbox",
+        "labelKey": "auto.30183e4b64af"
+      },
+      {
+        "key": "openRouteServiceConnectionId",
+        "label": "OpenRouteService connection",
+        "type": "text",
+        "default": "",
+        "section": "openrouteservice",
+        "labelKey": "auto.501e7e91249c"
+      },
+      {
+        "key": "searchProvider",
+        "label": "Place search",
+        "type": "text",
+        "default": "nominatim",
+        "labelKey": "auto.7e0759a53aa0"
+      },
+      {
+        "key": "routingProvider",
+        "label": "Routing",
+        "type": "text",
+        "default": "osrm",
+        "labelKey": "auto.7d15dd1bec2e"
+      },
+      {
+        "key": "elevationProvider",
+        "label": "Elevation",
+        "type": "text",
+        "default": "open-elevation",
+        "labelKey": "auto.a514da1094ce"
+      },
+      {
+        "key": "embedProvider",
+        "type": "text",
+        "label": "Map provider",
+        "default": "inherit",
+        "section": "embed",
+        "labelKey": "surface.provider"
+      },
+      {
+        "key": "embedStyle",
+        "type": "text",
+        "label": "Map style",
+        "default": "inherit",
+        "section": "embed",
+        "labelKey": "embed.style"
+      },
+      {
+        "key": "embedTheme",
+        "type": "text",
+        "label": "Appearance",
+        "default": "system",
+        "section": "embed",
+        "labelKey": "embed.theme"
+      },
+      {
+        "key": "codeBlockProvider",
+        "type": "text",
+        "label": "Map provider",
+        "default": "inherit",
+        "section": "codeBlock",
+        "labelKey": "surface.provider"
+      },
+      {
+        "key": "codeBlockStyle",
+        "type": "text",
+        "label": "Map style",
+        "default": "inherit",
+        "section": "codeBlock",
+        "labelKey": "embed.style"
+      },
+      {
+        "key": "codeBlockTheme",
+        "type": "text",
+        "label": "Appearance",
+        "default": "system",
+        "section": "codeBlock",
+        "labelKey": "embed.theme"
+      }
+    ]
+  },
+  "datasets": [
+    {
+      "id": "places",
+      "store": "durable",
+      "version": 1,
+      "title": "Places",
+      "primaryKey": [
+        "id"
+      ],
+      "columns": {
+        "id": {
+          "type": "text"
+        },
+        "name": {
+          "type": "text"
+        },
+        "lng": {
+          "type": "real"
+        },
+        "lat": {
+          "type": "real"
+        },
+        "category": {
+          "type": "text",
+          "nullable": true
+        },
+        "color": {
+          "type": "text",
+          "nullable": true
+        },
+        "note": {
+          "type": "text",
+          "nullable": true
+        },
+        "createdAt": {
+          "type": "datetime"
+        },
+        "position": {
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "indexes": [
+        {
+          "id": "name",
+          "columns": [
+            "name"
+          ]
+        },
+        {
+          "id": "position",
+          "columns": [
+            "position",
+            "id"
+          ]
+        }
+      ],
+      "titleKey": "auto.0cd3597453ab"
+    },
+    {
+      "id": "routes",
+      "store": "durable",
+      "version": 1,
+      "title": "Routes",
+      "primaryKey": [
+        "id"
+      ],
+      "columns": {
+        "id": {
+          "type": "text"
+        },
+        "name": {
+          "type": "text"
+        },
+        "mode": {
+          "type": "text",
+          "enum": [
+            "driving",
+            "walking",
+            "cycling"
+          ]
+        },
+        "geometry": {
+          "type": "json",
+          "nullable": true
+        },
+        "distanceM": {
+          "type": "real",
+          "nullable": true
+        },
+        "durationS": {
+          "type": "real",
+          "nullable": true
+        },
+        "note": {
+          "type": "text",
+          "nullable": true
+        },
+        "createdAt": {
+          "type": "datetime"
+        },
+        "position": {
+          "type": "integer",
+          "default": 0
+        }
+      },
+      "titleKey": "auto.03730e58401e",
+      "indexes": [
+        {
+          "id": "position",
+          "columns": [
+            "position",
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "route_waypoints",
+      "store": "durable",
+      "version": 1,
+      "title": "Route waypoints",
+      "primaryKey": [
+        "routeId",
+        "position"
+      ],
+      "columns": {
+        "routeId": {
+          "type": "text"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "lng": {
+          "type": "real"
+        },
+        "lat": {
+          "type": "real"
+        },
+        "label": {
+          "type": "text"
+        },
+        "placeId": {
+          "type": "text",
+          "nullable": true
+        },
+        "fromLiveLocation": {
+          "type": "boolean",
+          "nullable": true
+        }
+      },
+      "relations": [
+        {
+          "kind": "foreign-key",
+          "columns": [
+            "routeId"
+          ],
+          "targetDataset": "routes",
+          "targetColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "titleKey": "auto.347209257639"
+    },
+    {
+      "id": "pin_sources",
+      "store": "durable",
+      "version": 1,
+      "title": "Pin sources",
+      "primaryKey": [
+        "id"
+      ],
+      "columns": {
+        "id": {
+          "type": "text"
+        },
+        "position": {
+          "type": "integer"
+        },
+        "definition": {
+          "type": "json"
+        }
+      },
+      "titleKey": "auto.ae6a58048a94"
+    },
+    {
+      "id": "geocode_cache",
+      "store": "cache",
+      "version": 1,
+      "title": "Geocode cache",
+      "primaryKey": [
+        "id"
+      ],
+      "columns": {
+        "id": {
+          "type": "text"
+        },
+        "address": {
+          "type": "text"
+        },
+        "lng": {
+          "type": "real",
+          "nullable": true
+        },
+        "lat": {
+          "type": "real",
+          "nullable": true
+        },
+        "unresolved": {
+          "type": "boolean"
+        }
+      },
+      "titleKey": "auto.cfd57fa1e034"
+    },
+    {
+      "id": "geocode_answers",
+      "store": "cache",
+      "version": 1,
+      "title": "Geocode cache",
+      "primaryKey": [
+        "id"
+      ],
+      "columns": {
+        "id": {
+          "type": "text"
+        },
+        "address": {
+          "type": "text"
+        },
+        "provider": {
+          "type": "text"
+        },
+        "observedAt": {
+          "type": "integer"
+        },
+        "expiresAt": {
+          "type": "integer"
+        },
+        "lng": {
+          "type": "real",
+          "nullable": true
+        },
+        "lat": {
+          "type": "real",
+          "nullable": true
+        },
+        "unresolved": {
+          "type": "boolean"
+        }
+      },
+      "indexes": [
+        {
+          "id": "geocode_answers_recency",
+          "columns": [
+            "observedAt",
+            "id"
+          ]
+        }
+      ],
+      "titleKey": "auto.cfd57fa1e034"
+    }
+  ],
+  "locales": {
+    "en": "runtime/locales/en.json",
+    "de": "runtime/locales/de.json",
+    "es": "runtime/locales/es.json",
+    "fr": "runtime/locales/fr.json",
+    "zh-CN": "runtime/locales/zh-CN.json"
+  },
+  "runtime": {
+    "ui": "runtime/index.js",
+    "backend": "runtime/backend.js"
+  },
+  "permissions": {
+    "network": {
+      "hosts": [
+        "api.mapbox.com",
+        "api.heigit.org",
+        "nominatim.openstreetmap.org",
+        "routing.openstreetmap.de",
+        "router.project-osrm.org",
+        "api.open-elevation.com",
+        "basemaps.cartocdn.com",
+        "server.arcgisonline.com",
+        "tiles.basemaps.cartocdn.com",
+        "tiles-a.basemaps.cartocdn.com",
+        "tiles-b.basemaps.cartocdn.com",
+        "tiles-c.basemaps.cartocdn.com",
+        "tiles-d.basemaps.cartocdn.com",
+        "a.basemaps.cartocdn.com",
+        "b.basemaps.cartocdn.com",
+        "c.basemaps.cartocdn.com",
+        "d.basemaps.cartocdn.com"
+      ]
+    },
+    "accounts": [
+      "map.style",
+      "geo.search",
+      "geo.reverse",
+      "geo.route",
+      "geo.elevation"
+    ],
+    "storage": {
+      "vault": true,
+      "metadata": [
+        "assets/icon/map-icon"
+      ]
+    }
+  },
+  "assets": "runtime/assets",
+  "fileViews": {
+    ".gpx": {
+      "view": "map.file",
+      "icon": "map-marked",
+      "label": "GPX map",
+      "labelKey": "file.gpx",
+      "editable": false
+    },
+    ".kml": {
+      "view": "map.file",
+      "icon": "map-marked",
+      "label": "KML map",
+      "labelKey": "file.kml",
+      "editable": false
+    },
+    ".geojson": {
+      "view": "map.file",
+      "icon": "map-marked",
+      "label": "GeoJSON map",
+      "labelKey": "file.geojson",
+      "editable": false
+    }
+  },
+  "consumes": [
+    {
+      "id": "map.sidebarTab",
+      "kind": "extension",
+      "range": "^1.0.0",
+      "optional": true
+    }
+  ]
+}
