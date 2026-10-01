@@ -1,7 +1,8 @@
+import { assertCommandOutput, commandContracts } from './commandContracts'
 import de from '../locales/de.json'
 import config from '../config.json'
 import { describe, expect, it, vi } from 'vitest'
-import type { PluginBackendApi } from '@valley/plugin-sdk'
+import type { PluginBackendApi, PluginBackendOperationContext } from '@valley/plugin-sdk'
 import type { PluginAccountConnection, PluginFetchRequest, PluginFetchResponse } from '@valley/plugin-sdk/pluginNetwork'
 import { register } from '../src/backend'
 
@@ -14,11 +15,13 @@ const routeBody = { features: [{ geometry: { coordinates: points }, properties: 
 function setup(accounts: PluginAccountConnection[] = [], storage?: PluginBackendApi['storage']) {
   const i18n = { t: (key: string) => key }
   const handlers = new Map<string, (payload: unknown) => unknown>()
+  const operations = new Map<string, (payload: unknown, context: PluginBackendOperationContext) => unknown>()
   const fetch = vi.fn<(request: PluginFetchRequest) => Promise<PluginFetchResponse>>()
   const cancel = vi.fn(async (_requestId: string) => true)
   const authorize = vi.fn(async (id: string) => `opaque:${id}`)
   const files = { openVault: vi.fn(async () => ({ handle: 'archive', sha1: 'unchanged' })), read: vi.fn(async (_handle: string, options: { offset: number; maxBytes: number }) => ({ base64: Buffer.from('archive-bytes').subarray(options.offset, options.offset + options.maxBytes).toString('base64'), done: true })), release: vi.fn(async () => {}) }
-  const dispose = register({ storage, i18n, rpc: { handle: (method: string, handler: (payload: unknown) => unknown) => { handlers.set(method, handler); return () => { handlers.delete(method) } }, emit: () => {} }, accounts: { subscribe: () => () => {}, list: async () => accounts, authorize }, network: { fetch, cancel }, files } as unknown as PluginBackendApi)
+  const api = { storage, i18n, rpc: { handleOperation: (method: string, handler: (payload: unknown, context: PluginBackendOperationContext) => unknown) => { if (handlers.has(method) || operations.has(method)) throw new Error('Duplicate backend method'); operations.set(method, async (input, context) => assertCommandOutput(method, input, await handler(input, context))); return () => { operations.delete(method) } }, handle: (method: string, handler: (payload: unknown) => unknown) => { handlers.set(method, handler); return () => { handlers.delete(method) } }, emit: () => {} }, accounts: { subscribe: () => () => {}, list: async () => accounts, authorize }, network: { fetch, cancel }, files } as unknown as PluginBackendApi
+  const dispose = register(api)
   const rawCall = async (method: string, payload: unknown = {}) => await handlers.get(method)!(payload)
   const call = async (method: string, payload: unknown = {}) => {
     if (!['geocode', 'reverseGeocode', 'route', 'elevation', 'publicJson'].includes(method)) return rawCall(method, payload)
@@ -26,10 +29,34 @@ function setup(accounts: PluginAccountConnection[] = [], storage?: PluginBackend
     try { return await rawCall(method, { ...payload as Record<string, unknown>, requestId }) }
     finally { await rawCall('finishRequest', { requestId }) }
   }
-  return { fetch, cancel, authorize, call, rawCall, handlers, dispose, files, i18n }
+  const callOperation = (method: string, payload: unknown) => operations.get(method)!(payload, { id: crypto.randomUUID(), cancellation: new AbortController().signal, api })
+  return { fetch, cancel, authorize, call, rawCall, callOperation, handlers, operations, dispose, files, i18n }
 }
 
 describe('Map package backend', () => {
+  it.each([
+    { id: 'listConnections', input: {}, response: null },
+    { id: 'geocode', input: { connectionId: 'tiles', query: 'Forest' }, response: { features: [{ id: 'place.1', geometry: { coordinates: [8, 12] }, properties: { name: 'Forest', full_address: 'Forest, Reserve' } }] } },
+    { id: 'reverseGeocode', input: { connectionId: 'tiles', longitude: 8, latitude: 12 }, response: { features: [{ id: 'place.1', geometry: { coordinates: [8, 12] }, properties: { name: 'Forest' } }] } },
+    { id: 'route', input: { connectionId: 'field', coordinates: points }, response: routeBody },
+    { id: 'elevation', input: { connectionId: 'field', coordinates: [points[0]] }, response: { geometry: { coordinates: [8, 12, 450] } } },
+    { id: 'public.search', input: { query: 'Forest' }, response: [{ lat: '12', lon: '8', name: 'Forest', display_name: 'Forest, Reserve' }] },
+    { id: 'public.reverse', input: { longitude: 8, latitude: 12 }, response: { lat: '12', lon: '8', display_name: 'Forest, Reserve' } },
+    { id: 'public.route', input: { waypoints: points.map(([lng, lat]) => ({ lng, lat })) }, response: { code: 'Ok', routes: [{ geometry: { type: 'LineString', coordinates: points }, distance: 1000, duration: 600 }] } },
+    { id: 'public.elevation', input: { coordinates: points }, response: { results: points.map(([longitude, latitude]) => ({ longitude, latitude, elevation: 450 })) } }
+  ])('validates the admitted $id operation against its published input and output contracts', async ({ id, input, response }) => {
+    const mock = setup([account('field'), account('tiles', 'mapbox')])
+    const contract = commandContracts.find(entry => entry.command.id === id)!
+    expect(contract.input(input), JSON.stringify(contract.input.errors)).toBe(true)
+    mock.fetch.mockResolvedValue(jsonResponse(response))
+    try {
+      const result = await mock.callOperation(contract.method, { ...input, ...contract.command.request?.constants })
+      const output = contract.command.result === 'driver' ? (result as { data: unknown }).data : result
+      expect(contract.output(output), JSON.stringify(contract.output.errors)).toBe(true)
+      expect(mock.fetch).toHaveBeenCalledTimes(id === 'listConnections' ? 0 : 1)
+    } finally { mock.dispose() }
+  })
+
   it('seeds only missing icons in its declared metadata folder and closes the grant', async () => {
     const custom = '<svg>custom artwork</svg>'
     const files = new Map([['pin.svg', custom], ['fern.svg', custom]])

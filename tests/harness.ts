@@ -1,6 +1,7 @@
+import { assertCommandOutput } from './commandContracts'
 import * as React from 'react'
 import { createMockValleyApi as createBaseMock, type MockValleyApi } from '@valley/plugin-testkit'
-import type { PluginBackendApi, ValleyPluginApi } from '@valley/plugin-sdk'
+import type { PluginBackendApi, PluginBackendOperationContext, ValleyPluginApi } from '@valley/plugin-sdk'
 import type { PluginFetchRequest } from '@valley/plugin-sdk/pluginNetwork'
 import { register } from '../src/backend'
 import type { mapServices } from '../src/serviceClient'
@@ -42,9 +43,10 @@ export function createMockValleyApi(options: Parameters<typeof createBaseMock>[0
   eventListeners.set(mock.api, listeners)
   const handlers = new Map<string, (payload: unknown) => unknown>()
   const transfers = new Map<string, AbortController>()
-  register({
+  const operations = new Map<string, (payload: unknown, context: PluginBackendOperationContext) => unknown>()
+  const backendApi = {
     i18n: { language: () => 'en', t: (key: string) => key },
-    rpc: { handle: (method: string, handler: (payload: unknown) => unknown) => { handlers.set(method, handler); return () => { handlers.delete(method) } }, emit: () => {} },
+    rpc: { handleOperation: (method: string, handler: (payload: unknown, context: PluginBackendOperationContext) => unknown) => { if (handlers.has(method) || operations.has(method)) throw new Error('Duplicate backend method'); operations.set(method, async (input, context) => assertCommandOutput(method, input, await handler(input, context))); return () => { operations.delete(method) } }, handle: (method: string, handler: (payload: unknown) => unknown) => { handlers.set(method, handler); return () => { handlers.delete(method) } }, emit: () => {} },
     accounts: { subscribe: () => () => {}, list: async () => [], authorize: async () => { throw new Error('No account authorization fixture') } },
     network: {
       cancel: async (id: string) => { const controller = transfers.get(id); controller?.abort(); return Boolean(controller) },
@@ -58,7 +60,8 @@ export function createMockValleyApi(options: Parameters<typeof createBaseMock>[0
         } finally { if (request.requestId) transfers.delete(request.requestId) }
       }
     }
-  } as unknown as PluginBackendApi)
+  } as unknown as PluginBackendApi
+  register(backendApi)
   mock.api.backend = {
     ...mock.api.backend,
     call: async <T>(method: string, payload?: unknown): Promise<T> => {
@@ -68,6 +71,11 @@ export function createMockValleyApi(options: Parameters<typeof createBaseMock>[0
       const handler = handlers.get(method)
       if (!handler) throw new Error(`Unknown backend method ${method}`)
       return await handler(payload) as T
+    },
+    callOperation: async <T>(method: string, payload?: unknown): Promise<T> => {
+      const handler = operations.get(method)
+      if (!handler) throw new Error(`Unknown backend operation ${method}`)
+      return await handler(payload, { id: crypto.randomUUID(), cancellation: new AbortController().signal, api: backendApi }) as T
     },
     on: (event, listener) => { const group = listeners.get(event) ?? new Set(); group.add(listener); listeners.set(event, group); return () => { group.delete(listener) } }
   }

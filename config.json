@@ -210,7 +210,15 @@
         "label": "Appearance",
         "default": "system",
         "section": "embed",
-        "labelKey": "embed.theme"
+        "labelKey": "embed.theme",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "system",
+            "light",
+            "dark"
+          ]
+        }
       },
       {
         "key": "codeBlockProvider",
@@ -234,7 +242,66 @@
         "label": "Appearance",
         "default": "system",
         "section": "codeBlock",
-        "labelKey": "embed.theme"
+        "labelKey": "embed.theme",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "system",
+            "light",
+            "dark"
+          ]
+        }
+      },
+      {
+        "key": "sidebarTabOrder",
+        "label": "Sidebar tab order",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "mapViewState",
+        "label": "Map view state",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "union",
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readOnly": true,
+        "description": "Owner-managed runtime state; change it through the owning domain operation."
+      },
+      {
+        "key": "mapSessionState",
+        "label": "Map session state",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "union",
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readOnly": true,
+        "description": "Owner-managed runtime state; change it through the owning domain operation."
       }
     ]
   },
@@ -511,7 +578,928 @@
   },
   "runtime": {
     "ui": "runtime/index.js",
-    "backend": "runtime/backend.js"
+    "backend": "runtime/backend.js",
+    "services": [
+      {
+        "id": "command.listConnections",
+        "version": "1.0.0",
+        "method": "command.listConnections",
+        "operation": true,
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "metadata": {
+          "command": {
+            "id": "listConnections",
+            "description": "List configured map provider connections",
+            "effect": "read",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "capability": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "result": "driver",
+            "outputSchema": {
+              "type": "object",
+              "properties": {
+                "connections": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "provider": {
+                        "type": "string"
+                      },
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "capabilities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "secretState": {
+                        "enum": [
+                          "absent",
+                          "ok",
+                          "unreadable"
+                        ]
+                      },
+                      "usage": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "service": {
+                              "enum": [
+                                "routing",
+                                "elevation"
+                              ]
+                            },
+                            "limit": {
+                              "type": "number"
+                            },
+                            "remaining": {
+                              "type": "number"
+                            },
+                            "observedAt": {
+                              "type": "number"
+                            },
+                            "resetAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "service",
+                            "limit",
+                            "remaining",
+                            "observedAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "provider",
+                      "displayName",
+                      "capabilities",
+                      "secretState"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "connections"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      {
+        "id": "command.geocode",
+        "version": "1.0.0",
+        "method": "command.geocode",
+        "operation": true,
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "metadata": {
+          "command": {
+            "id": "geocode",
+            "description": "Search places through a configured map connection",
+            "effect": "read",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "connectionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "query": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20
+                },
+                "near": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "minimum": -180,
+                      "maximum": 180
+                    },
+                    {
+                      "type": "number",
+                      "minimum": -90,
+                      "maximum": 90
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              },
+              "required": [
+                "connectionId",
+                "query"
+              ],
+              "additionalProperties": false
+            },
+            "result": "driver",
+            "outputSchema": {
+              "type": "object",
+              "properties": {
+                "places": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "longitude": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      },
+                      "latitude": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "longitude",
+                      "latitude"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "places"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      {
+        "id": "command.reverseGeocode",
+        "version": "1.0.0",
+        "method": "command.reverseGeocode",
+        "operation": true,
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "metadata": {
+          "command": {
+            "id": "reverseGeocode",
+            "description": "Find an address for coordinates through a configured connection",
+            "effect": "read",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "connectionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "longitude": {
+                  "type": "number",
+                  "minimum": -180,
+                  "maximum": 180
+                },
+                "latitude": {
+                  "type": "number",
+                  "minimum": -90,
+                  "maximum": 90
+                }
+              },
+              "required": [
+                "connectionId",
+                "longitude",
+                "latitude"
+              ],
+              "additionalProperties": false
+            },
+            "result": "driver",
+            "outputSchema": {
+              "type": "object",
+              "properties": {
+                "places": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "longitude": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      },
+                      "latitude": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "longitude",
+                      "latitude"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "places"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      {
+        "id": "command.route",
+        "version": "1.0.0",
+        "method": "command.route",
+        "operation": true,
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "metadata": {
+          "command": {
+            "id": "route",
+            "description": "Plan a route through a configured map connection",
+            "effect": "read",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "connectionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "coordinates": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      },
+                      {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "minItems": 2,
+                  "maxItems": 50
+                },
+                "profile": {
+                  "enum": [
+                    "driving",
+                    "walking",
+                    "cycling"
+                  ]
+                }
+              },
+              "required": [
+                "connectionId",
+                "coordinates"
+              ],
+              "additionalProperties": false
+            },
+            "result": "driver",
+            "outputSchema": {
+              "type": "object",
+              "properties": {
+                "coordinates": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 3
+                  }
+                },
+                "distanceMeters": {
+                  "type": "number"
+                },
+                "durationSeconds": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "coordinates"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      {
+        "id": "command.elevation",
+        "version": "1.0.0",
+        "method": "command.elevation",
+        "operation": true,
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "metadata": {
+          "command": {
+            "id": "elevation",
+            "description": "Read coordinate elevations through a configured connection",
+            "effect": "read",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "connectionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "coordinates": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      },
+                      {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "minItems": 1,
+                  "maxItems": 100
+                }
+              },
+              "required": [
+                "connectionId",
+                "coordinates"
+              ],
+              "additionalProperties": false
+            },
+            "result": "driver",
+            "outputSchema": {
+              "type": "object",
+              "properties": {
+                "elevations": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "elevations"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      {
+        "id": "command.public",
+        "version": "1.0.0",
+        "method": "command.publicJson",
+        "operation": true,
+        "request": {
+          "type": "unknown"
+        },
+        "response": {
+          "type": "unknown"
+        },
+        "metadata": {
+          "commands": [
+            {
+              "id": "public.search",
+              "description": "Search places with the public map provider",
+              "effect": "read",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "near": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      },
+                      {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              },
+              "request": {
+                "constants": {
+                  "service": "search"
+                }
+              },
+              "outputSchema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 599
+                  },
+                  "json": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lat": {
+                          "type": "number",
+                          "minimum": -90,
+                          "maximum": 90
+                        },
+                        "lon": {
+                          "type": "number",
+                          "minimum": -180,
+                          "maximum": 180
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "lat",
+                        "lon",
+                        "name",
+                        "display_name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "status",
+                  "json"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "id": "public.reverse",
+              "description": "Find an address with the public map provider",
+              "effect": "read",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "longitude": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  "latitude": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  }
+                },
+                "required": [
+                  "longitude",
+                  "latitude"
+                ],
+                "additionalProperties": false
+              },
+              "request": {
+                "constants": {
+                  "service": "reverse"
+                }
+              },
+              "outputSchema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 599
+                  },
+                  "json": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "lat": {
+                            "type": "string"
+                          },
+                          "lon": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "lat",
+                          "lon",
+                          "display_name"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "error": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "error"
+                        ],
+                        "additionalProperties": true
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "json"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "id": "public.route",
+              "description": "Plan a route with the public map provider",
+              "effect": "read",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "waypoints": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lng": {
+                          "type": "number",
+                          "minimum": -180,
+                          "maximum": 180
+                        },
+                        "lat": {
+                          "type": "number",
+                          "minimum": -90,
+                          "maximum": 90
+                        }
+                      },
+                      "required": [
+                        "lng",
+                        "lat"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "mode": {
+                    "enum": [
+                      "driving",
+                      "walking",
+                      "cycling"
+                    ]
+                  },
+                  "demo": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "waypoints"
+                ],
+                "additionalProperties": false
+              },
+              "request": {
+                "constants": {
+                  "service": "route"
+                }
+              },
+              "outputSchema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 599
+                  },
+                  "json": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "routes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "geometry": {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "const": "LineString"
+                                    },
+                                    "coordinates": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "number"
+                                        },
+                                        "minItems": 2,
+                                        "maxItems": 3
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "coordinates"
+                                  ],
+                                  "additionalProperties": true
+                                },
+                                "distance": {
+                                  "type": "number"
+                                },
+                                "duration": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "geometry",
+                                "distance",
+                                "duration"
+                              ],
+                              "additionalProperties": true
+                            }
+                          }
+                        },
+                        "required": [
+                          "code"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "error": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "error"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "message"
+                        ],
+                        "additionalProperties": true
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "json"
+                ],
+                "additionalProperties": false
+              }
+            },
+            {
+              "id": "public.elevation",
+              "description": "Read elevations with the public map provider",
+              "effect": "read",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "coordinates": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": -180,
+                          "maximum": 180
+                        },
+                        {
+                          "type": "number",
+                          "minimum": -90,
+                          "maximum": 90
+                        }
+                      ],
+                      "items": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "coordinates"
+                ],
+                "additionalProperties": false
+              },
+              "request": {
+                "constants": {
+                  "service": "elevation"
+                }
+              },
+              "outputSchema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 599
+                  },
+                  "json": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "results": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "latitude": {
+                                  "type": "number"
+                                },
+                                "longitude": {
+                                  "type": "number"
+                                },
+                                "elevation": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "latitude",
+                                "longitude",
+                                "elevation"
+                              ],
+                              "additionalProperties": true
+                            }
+                          }
+                        },
+                        "required": [
+                          "results"
+                        ],
+                        "additionalProperties": true
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "error": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "error"
+                        ],
+                        "additionalProperties": true
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "json"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ]
+        }
+      }
+    ]
   },
   "permissions": {
     "network": {

@@ -82,6 +82,24 @@ export function register(api: PluginBackendApi): () => void {
   }
   const disposers: Array<() => void> = [api.accounts.subscribe(() => { usage.clear(); api.rpc.emit('connectionsChanged', undefined) })]
   const handle = (method: string, run: (payload: Record<string, unknown>, request: MapBackendRequest) => unknown | Promise<unknown>, wrapped = true, scoped = false) => {
+    if (['listConnections', 'geocode', 'reverseGeocode', 'route', 'elevation', 'publicJson'].includes(method)) disposers.push(api.rpc.handleOperation(`command.${method}`, async (payload, context) => {
+      const signal = context.cancellation
+      const check = () => signal.throwIfAborted()
+      const active = new Set<string>()
+      const abort = () => { for (const requestId of active) void context.api.network.cancel(requestId).catch(() => {}) }
+      signal.addEventListener('abort', abort, { once: true })
+      try {
+        check()
+        const data = await run(object(payload ?? {}), { check, fetch: async request => {
+          check()
+          const requestId = crypto.randomUUID()
+          active.add(requestId)
+          try { const result = await context.api.network.fetch({ ...request, requestId }); check(); return result }
+          finally { active.delete(requestId) }
+        } })
+        return wrapped ? { ok: true, data } : data
+      } finally { signal.removeEventListener('abort', abort) }
+    }))
     disposers.push(api.rpc.handle(method, async (payload) => {
       let input: Record<string, unknown> | undefined
       try {
