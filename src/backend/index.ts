@@ -1,3 +1,4 @@
+import { createWorkflowAdapter } from './workflow'
 import { DEFAULT_PIN_ICONS } from '../pinIconDefaults'
 import { uiText, initBackendLocalization } from '../localization'
 import type { PluginBackendApi } from '@valley/plugin-sdk'
@@ -44,6 +45,11 @@ function featureToPlace(value: unknown): MapPlaceHit | null {
 }
 
 export function register(api: PluginBackendApi): () => void {
+  const workflow = createWorkflowAdapter(api, { readiness: async (nodeId, context) => {
+    if (nodeId.startsWith('public.') || nodeId === 'listConnections') return { state: 'Available' }
+    const capability = nodeId === 'route' ? 'geo.route' : nodeId === 'elevation' ? 'geo.elevation' : nodeId === 'reverseGeocode' ? 'geo.reverse' : 'geo.search'
+    return (await (context?.api ?? api).accounts.list()).some(account => account.capabilities.includes(capability) && ['ok', 'stored'].includes(account.credentialState ?? 'absent')) ? { state: 'Available' } : { state: 'Unconfigured', reason: 'Configure a Map account with the required location capability in Accounts settings.' }
+  } })
   initBackendLocalization(api)
   const requests = createBackendRequests(api.network)
   const offlineFiles = new Map<string, Promise<{ handle: string; sha1?: string }>>()
@@ -82,7 +88,7 @@ export function register(api: PluginBackendApi): () => void {
   }
   const disposers: Array<() => void> = [api.accounts.subscribe(() => { usage.clear(); api.rpc.emit('connectionsChanged', undefined) })]
   const handle = (method: string, run: (payload: Record<string, unknown>, request: MapBackendRequest) => unknown | Promise<unknown>, wrapped = true, scoped = false) => {
-    if (['listConnections', 'geocode', 'reverseGeocode', 'route', 'elevation', 'publicJson'].includes(method)) disposers.push(api.rpc.handleOperation(`command.${method}`, async (payload, context) => {
+    if (['listConnections', 'geocode', 'reverseGeocode', 'route', 'elevation', 'publicJson'].includes(method)) disposers.push(workflow.operation(`command.${method}`, async (payload, context) => {
       const signal = context.cancellation
       const check = () => signal.throwIfAborted()
       const active = new Set<string>()
@@ -259,5 +265,5 @@ export function register(api: PluginBackendApi): () => void {
     }
     return { status: response.status, json }
   }, false, true)
-  return () => { void requests.dispose(); for (const dispose of disposers.reverse()) dispose(); usage.clear(); if (offlineFiles.size) void Promise.allSettled([...offlineFiles.values()]).then((entries) => api.files.release(entries.flatMap((entry) => entry.status === 'fulfilled' ? [entry.value.handle] : []))); offlineFiles.clear() }
+  return () => { workflow.dispose(); void requests.dispose(); for (const dispose of disposers.reverse()) dispose(); usage.clear(); if (offlineFiles.size) void Promise.allSettled([...offlineFiles.values()]).then((entries) => api.files.release(entries.flatMap((entry) => entry.status === 'fulfilled' ? [entry.value.handle] : []))); offlineFiles.clear() }
 }

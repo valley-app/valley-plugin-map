@@ -95,7 +95,7 @@ const MapSection: FC = () => {
   const connections = useMapConnections()
   const settings = resolveSettings(values)
   const enabled = (connection: MapConnectionInfo): boolean =>
-    connection.secretState === 'ok' &&
+    (connection.secretState === 'ok' || connection.secretState === 'stored') &&
     (connection.provider !== 'mapbox' || settings.mapboxEnabled) &&
     (connection.provider !== 'openrouteservice' || settings.openRouteServiceEnabled)
   const choices = (capability: string): MapSelectOption[] => connections
@@ -199,7 +199,7 @@ const ProviderSection: FC<{ providerId: ProviderId; connectionKey: string }> = (
   const { SelectField } = api.ui.settings
   const [values, commit] = useSettingsValues()
   const connections = useMapConnections().filter((connection) => connection.provider === providerId)
-  const available = connections.filter((connection) => connection.secretState === 'ok')
+  const available = connections.filter((connection) => (connection.secretState === 'ok' || connection.secretState === 'stored'))
   const options = available.map((connection) => connectionOption(connection))
   const selectedId = String(values[connectionKey] ?? '')
   const selected = connections.find((connection) => connection.id === selectedId)
@@ -212,6 +212,7 @@ const ProviderSection: FC<{ providerId: ProviderId; connectionKey: string }> = (
     .filter((role) => parseAccountProviderChoice(roleChoices[role])?.provider === providerId)
     .map((role) => uiText(ROLE_KEYS[role]))
   const status = selected?.secretState === 'ok' ? 'provider.status.connected'
+    : selected?.secretState === 'stored' ? 'provider.status.stored'
     : selected?.secretState === 'unreadable' ? 'provider.status.unreadable' : 'provider.status.setup'
   return (
     <Section>

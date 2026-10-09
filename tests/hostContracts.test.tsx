@@ -109,7 +109,7 @@ it('keeps package styles tokenized, scalable, and consistent with SDK drop marke
     expect(source, file).not.toMatch(retired)
     for (const hex of hexes) expect(source.toLowerCase(), file).not.toContain(hex)
     for (const [, selector, body] of source.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
-      if (/\.drop-(?:before|after)\b|\[data-drop-position|is-drop-target/.test(selector) && /\bheight:/.test(body)) expect(body, `${file}: ${selector}`).toContain('var(--drop-indicator-fill)')
+      if (/\.drop-(?:before|after)\b|\[data-drop-position|is-drop-target/.test(selector) && /\bheight:/.test(body)) expect(body, `${file}: ${selector}`).toMatch(/var\(--drop-indicator-fill(?:\s*,|\))/)
       if (/(?<![-\w])font-size:\s*[0-9.]+px/.test(body)) expect(selector, file).toMatch(fixedGlyph)
     }
   }

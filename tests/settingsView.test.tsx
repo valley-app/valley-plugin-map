@@ -250,10 +250,10 @@ describe('Map pin source editor', () => {
 })
 
 describe('Map provider controls', () => {
-  it('shows email subtitles in provider settings and saves the chosen account', async () => {
+  it.each(['ok', 'stored'] as const)('shows email subtitles for %s credentials and saves the chosen account', async secretState => {
     const connections = ['field-map', 'survey-map'].map((id) => ({
       id, provider: 'mapbox', displayName: id, email: `${id}@biodiversity.example`,
-      capabilities: ['map.style'], secretState: 'ok' as const
+      capabilities: ['map.style'], secretState
     }))
     const mock = createMockValleyApi({
       manifest: { id: 'map', drivers: [] }, settings: { mapboxConnectionId: 'field-map' },
@@ -264,6 +264,7 @@ describe('Map provider controls', () => {
     await act(async () => render(<Settings section="mapbox" />))
     const field = screen.getByRole('combobox', { name: 'Mapbox connection' })
     expect(field).toHaveValue('field-map')
+    if (secretState === 'stored') expect(screen.getByText('Key saved — checked when used.')).toBeInTheDocument()
     expect(within(field).getByRole('option', { name: 'field-map' })).toHaveAttribute('title', 'field-map@biodiversity.example')
     expect(within(field).getByRole('option', { name: 'survey-map' })).toHaveAttribute('title', 'survey-map@biodiversity.example')
     fireEvent.change(field, { target: { value: 'survey-map' } })

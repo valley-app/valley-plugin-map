@@ -71,7 +71,7 @@ async function setup(): Promise<Harness> {
   const mock = createMockValleyApi({
     manifest: { id: 'map' },
     datasets: {
-      'map.places': [seededPlace as unknown as Record<string, unknown>],
+      'map.places': [{ ...seededPlace, category: null, color: null, note: null, position: 0 }],
       'map.routes': [{
         id: seededRoute.id,
         name: seededRoute.name,
@@ -80,6 +80,7 @@ async function setup(): Promise<Harness> {
         distanceM: null,
         durationS: null,
         note: null,
+        position: 0,
         createdAt: seededRoute.createdAt
       }],
       'map.route_waypoints': seededRoute.waypoints.map((waypoint, position) => ({
@@ -116,6 +117,34 @@ describe('mapbox commands', () => {
     const res = await h.api.commands.execute('map:search', { query: 'Rainforest Observatory' })
     expect(res.ok).toBe(true)
     expect(res.ok && res.value).toMatchObject({ name: 'Rainforest Observatory, Canopy Reserve', lat: 48.8584 })
+  })
+
+  it('declares map-session and persisted style mutations as writes and waits for saved owner state', async () => {
+    const writes = ['open', 'describe', 'search', 'plan-route', 'goto', 'set-style', 'clear-route', 'show-place', 'show-route']
+    for (const id of writes) expect(h.api.commands.list().find(command => command.id === `map:${id}`)?.sideEffect, id).toBe('write')
+    expect(await h.api.commands.executeOwn('set-style', { style: 'satellite' })).toMatchObject({ ok: true, value: { style: 'satellite' } })
+    expect(h.api.settings.get().mapViewState).toMatchObject({ style: 'satellite' })
+    expect(await h.api.commands.executeOwn('show-route', { id: seededRoute.id })).toMatchObject({ ok: true, value: { id: seededRoute.id } })
+    expect(h.api.settings.get().mapSessionState).toMatchObject({ savedRouteId: seededRoute.id })
+    expect(await h.api.commands.executeOwn('clear-route')).toMatchObject({ ok: true, value: null })
+    expect(h.api.settings.get().mapSessionState).toMatchObject({ savedRouteId: null })
+  })
+
+  it('refuses retained cancelled, disposed and replaced command owners before changing the store', async () => {
+    const registrations = vi.spyOn(h.api.commands, 'register')
+    const off = registerMapboxCommands(h.api)
+    const command = registrations.mock.calls.find(([item]) => item.id === 'set-style')![0]
+    const controller = new AbortController(); controller.abort()
+    await expect(command.run({ style: 'satellite' }, { caller: 'agent', cancellation: controller.signal })).rejects.toThrow()
+    expect(h.store.getSnapshot().style).toBe('streets')
+    off()
+    await expect(command.run({ style: 'satellite' }, { caller: 'agent' })).rejects.toThrow()
+    expect(h.store.getSnapshot().style).toBe('streets')
+    const next = createStore(h.api)
+    await next.ready
+    await expect(command.run({ style: 'satellite' }, { caller: 'agent' })).rejects.toThrow()
+    expect(next.getSnapshot().style).toBe('streets')
+    await disposeStore(next)
   })
 
   it('publishes separate saved-item and view targets and restores after load without opening the map', async () => {
@@ -171,6 +200,30 @@ describe('mapbox commands', () => {
     expect(h.store.getSnapshot().pinSources).toHaveLength(previous.length + 1)
   })
 
+  it('refuses unknown or mismatched pin sources as known no-effect outcomes', async () => {
+    const registrations = vi.spyOn(h.api.commands, 'register')
+    const off = registerMapAutomation(h.api)
+    const command = (id: string) => registrations.mock.calls.find(([item]) => item.id === id)![0]
+    const before = structuredClone(h.store.getSnapshot().pinSources)
+    const save = vi.spyOn(h.store, 'savePinSources')
+    const cases: [string, Record<string, unknown>, string][] = [
+      ['save-pin-source', { source: { id: 'ghost', title: 'Ghost' } }, 'NOT_FOUND'],
+      ['save-pin-source', { source: { title: '' } }, 'INVALID_INPUT'],
+      ['delete-pin-source', { id: 'ghost' }, 'NOT_FOUND'],
+      ['reorder-pin-sources', { ids: ['ghost'] }, 'INVALID_INPUT']
+    ]
+    for (const [id, input, code] of cases) {
+      let error: unknown
+      try { await command(id).run(input, { caller: 'agent' }) } catch (caught) { error = caught }
+      expect(error, id).toMatchObject({ code, outcome: 'not-applied' })
+    }
+    expect(save).not.toHaveBeenCalled()
+    save.mockReturnValueOnce(false)
+    await expect(command('save-pin-source').run({ source: { title: 'Research' } }, { caller: 'agent' })).rejects.toMatchObject({ code: 'PIN_SOURCES_UNAVAILABLE', outcome: 'not-applied' })
+    expect(h.store.getSnapshot().pinSources).toEqual(before)
+    off()
+  })
+
   it('exports route data and imports it as a new reversible saved route', async () => {
     const exported = await h.api.commands.execute('map:export-route', { id: seededRoute.id, format: 'geojson' })
     expect(exported.ok).toBe(true)
@@ -182,6 +235,28 @@ describe('mapbox commands', () => {
     await h.busUndo.at(-1)!.undo()
     expect(h.store.getSnapshot().routes.map((route) => route.id)).toEqual([seededRoute.id])
     expect((await h.api.commands.execute('map:import-route', { name: 'Bad path', path: '../outside.gpx' })).ok).toBe(false)
+  })
+
+  it('refuses unreadable or unusable route data before importing anything', async () => {
+    const registrations = vi.spyOn(h.api.commands, 'register')
+    const off = registerMapAutomation(h.api)
+    const run = registrations.mock.calls.find(([item]) => item.id === 'import-route')![0].run
+    const importRoute = vi.spyOn(h.store, 'importRoute')
+    const readFile = vi.spyOn(h.api.drivers.files, 'readFile')
+    const base = { name: 'Imported', path: '', content: '', format: 'gpx' as const, mode: 'driving' as const }
+    readFile.mockResolvedValueOnce({ ok: false, error: 'denied' })
+    await expect(run({ ...base, path: 'routes/a.gpx' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'FILE_UNAVAILABLE', outcome: 'not-applied' })
+    readFile.mockRejectedValueOnce(new Error('io'))
+    await expect(run({ ...base, path: 'routes/a.gpx' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'FILE_UNAVAILABLE', outcome: 'not-applied' })
+    readFile.mockResolvedValueOnce({ ok: true, data: { content: '' } })
+    await expect(run({ ...base, path: 'routes/missing.gpx' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    await expect(run({ ...base, format: 'geojson', content: '{not json' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    await expect(run({ ...base, content: '<gpx><wpt lat="1" lon="2"></wpt></gpx>' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    const tooMany = JSON.stringify({ type: 'FeatureCollection', features: Array.from({ length: 101 }, (_, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [i / 10, 1] } })) })
+    await expect(run({ ...base, format: 'geojson', content: tooMany }, { caller: 'agent' })).rejects.toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    expect(importRoute).not.toHaveBeenCalled()
+    expect(h.store.getSnapshot().routes.map((route) => route.id)).toEqual([seededRoute.id])
+    off()
   })
 
   it('opens the map even when the label geocodes to nothing', async () => {
@@ -206,6 +281,18 @@ describe('mapbox commands', () => {
   it('describe reverse-geocodes a coordinate', async () => {
     const res = await h.api.commands.execute('map:describe', { lat: 12.3769, lng: 8.5417 })
     expect(res.ok && (res.value as { address: string }).address).toBe('Forest Trail 1, Example Grove')
+  })
+
+  it('declares opening the map and pinning a described coordinate as non-replayable writes', async () => {
+    const registrations = vi.spyOn(h.api.commands, 'register')
+    const off = registerMapboxCommands(h.api)
+    for (const id of ['open', 'describe']) expect(registrations.mock.calls.find(([item]) => item.id === id)![0], id).toMatchObject({ sideEffect: 'write', recovery: 'non-replayable' })
+    expect(await h.api.commands.executeOwn('open')).toEqual({ ok: true, value: null })
+    expect(h.api.workspace.openMainTab).toHaveBeenCalledTimes(1)
+    const res = await h.api.commands.execute('map:describe', { lat: 12.3769, lng: 8.5417 })
+    expect(res).toEqual({ ok: true, value: { lat: 12.3769, lng: 8.5417, address: 'Forest Trail 1, Example Grove' } })
+    expect(h.api.workspace.openMainTab).toHaveBeenCalledTimes(2)
+    off()
   })
 
   it('geocodes an address to coordinates without moving the map', async () => {
@@ -260,7 +347,40 @@ describe('mapbox commands', () => {
   it('show-place throws for an unknown place', async () => {
     const res = await h.api.commands.execute('map:show-place', { name: 'Nowhere' })
     expect(res.ok).toBe(false)
-    expect(!res.ok && res.error.message).toContain('unavailable')
+    expect(!res.ok && res.error.message).toContain('Nowhere')
+  })
+
+  it('refuses a missing saved place or route as a known no-effect NOT_FOUND', async () => {
+    const registrations = vi.spyOn(h.api.commands, 'register')
+    const offs = [registerMapboxCommands(h.api), registerMapAutomation(h.api)]
+    const command = (id: string) => registrations.mock.calls.find(([item]) => item.id === id)![0]
+    const before = h.store.getSnapshot()
+    const cases: [string, Record<string, unknown>][] = [
+      ['show-place', { name: 'Nowhere' }],
+      ['delete-place', { name: 'Nowhere' }],
+      ['update-place', { name: 'Nowhere', newName: 'Somewhere' }],
+      ['delete-route', { name: 'Nowhere' }],
+      ['show-route', { id: 'Nowhere' }],
+      ['export-route', { id: 'Nowhere', format: 'gpx' }]
+    ]
+    for (const [id, input] of cases) {
+      let error: unknown
+      try { await command(id).run(input, { caller: 'agent' }) } catch (caught) { error = caught }
+      expect(error, id).toMatchObject({ code: 'NOT_FOUND', outcome: 'not-applied', message: expect.stringContaining('Nowhere') })
+    }
+    for (const id of ['delete-place', 'update-place', 'delete-route']) {
+      await expect(command(id).revision!({ name: 'Nowhere' }), id).rejects.toMatchObject({ code: 'NOT_FOUND', outcome: 'not-applied' })
+    }
+    expect(h.store.getSnapshot().places).toEqual(before.places)
+    expect(h.store.getSnapshot().routes).toEqual(before.routes)
+    expect(h.store.getSnapshot().selectedPlaceId).toBe(before.selectedPlaceId)
+    let parseError: unknown
+    try { command('describe').input!.parse({ lat: 'x' }) } catch (caught) { parseError = caught }
+    expect(parseError).toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    await expect(command('distance').run({ from: '95, 8', to: 'Fox Den' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    vi.spyOn(h.store, 'lookupPlaces').mockResolvedValueOnce([])
+    await expect(command('distance').run({ from: 'Atlantis', to: 'Fox Den' }, { caller: 'agent' })).rejects.toMatchObject({ code: 'NOT_FOUND', outcome: 'not-applied' })
+    for (const off of offs) off()
   })
 
   it('delete-place is a write with a working revert', async () => {
@@ -278,6 +398,27 @@ describe('mapbox commands', () => {
     expect(h.store.getSnapshot().places.find((p) => p.id === 'place-seed')?.name).toBe('Fern Grove')
     await h.busUndo[0].undo()
     expect(h.store.getSnapshot().places.find((p) => p.id === 'place-seed')?.name).toBe('Fox Den')
+  })
+
+  it('sends only host-serialisable dataset values when saving and clearing an optional place field', async () => {
+    const dataset = h.api.data.dataset.bind(h.api.data)
+    const sent: unknown[] = []
+    vi.spyOn(h.api.data, 'dataset').mockImplementation(((id: string) => {
+      const handle = dataset(id)
+      return { ...handle,
+        upsert: (values: never, options?: never) => { sent.push(values); return handle.upsert(values, options) },
+        update: (key: never, values: never, options?: never) => { sent.push(values); return handle.update(key, values, options) }
+      }
+    }) as typeof h.api.data.dataset)
+    const undefinedField = (values: unknown) => Object.entries(values as Record<string, unknown>).find(([, value]) => value === undefined)?.[0]
+    const saved = await h.api.commands.execute('map:save-place', { name: 'Moss Gate', lat: 12.4, lng: 8.6 })
+    expect(saved.ok).toBe(true)
+    const cleared = await h.api.commands.execute('map:update-place', { name: 'Moss Gate', note: '' })
+    expect(cleared.ok).toBe(true)
+    expect(sent).toHaveLength(2)
+    expect(sent.map(undefinedField)).toEqual([undefined, undefined])
+    const rows = (await dataset('map.places').query({})).rows
+    expect(rows.find((row) => row.name === 'Moss Gate')).toMatchObject({ note: null })
   })
 
   it('save-route saves the current planner and reverts', async () => {
@@ -310,6 +451,28 @@ describe('mapbox commands', () => {
     const res = await h.api.commands.execute('map:set-style', { style: 'satellite' })
     expect(res.ok && (res.value as { style: string }).style).toBe('satellite')
     expect(h.store.getSnapshot().style).toBe('satellite')
+  })
+
+  it('set-style refuses an unknown or unavailable style before changing the map', async () => {
+    const viewBefore = h.api.settings.get().mapViewState
+    const registrations = vi.spyOn(h.api.commands, 'register')
+    const off = registerMapboxCommands(h.api)
+    const registered = registrations.mock.calls.find(([item]) => item.id === 'set-style')![0]
+    let parseError: unknown
+    try { registered.input!.parse({ style: 'satelite' }) } catch (error) { parseError = error }
+    expect(parseError).toMatchObject({ code: 'INVALID_INPUT', outcome: 'not-applied' })
+    expect(registered.input!.parse({ style: ' Satellite ' })).toEqual({ style: 'satellite' })
+    expect(registered.input!.fromCli!(['Outdoors'], {})).toEqual({ style: 'outdoors' })
+    const unknown = await h.api.commands.execute('map:set-style', { style: 'satelite' })
+    expect(unknown.ok).toBe(false)
+    expect(h.store.getSnapshot().style).toBe('streets')
+    expect(h.api.settings.get().mapViewState).toEqual(viewBefore)
+    let runError: unknown
+    try { await registered.run({ style: 'navigation' }, { caller: 'agent' }) } catch (error) { runError = error }
+    expect(runError).toMatchObject({ code: 'STYLE_UNAVAILABLE', outcome: 'not-applied' })
+    expect(h.store.getSnapshot().style).toBe('streets')
+    expect(h.api.settings.get().mapViewState).toEqual(viewBefore)
+    off()
   })
 })
 

@@ -86,3 +86,9 @@ theme: light
 ```
 
 Scrolling the note preserves a static copy of the last map while its interactive renderer is suspended. Drag to pan and use the +/− controls to zoom. Wheel scrolling moves the note without zooming the map.
+
+## Workflow integration
+
+The backend explicitly registers its supported blocks through `registerWorkflowContribution`. Workflow calls the owning operations with their original authentication, cancellation, grants, revisions, and receipts. The catalogue publishes Draft-07 parameter and port contracts; credential administration and approval bypasses are excluded. Workflow availability is configured separately in Workflow → Plugins. Existing account, connection, and profile settings remain owned by this plugin.
+
+Workflow output collections are explicit: `listConnections` → `$.connections`, `geocode` → `$.places`, `reverseGeocode` → `$.places`, `elevation` → `$.elevations`, `public.search` → `$.json`, `public.route` → `$.json.routes`, `public.elevation` → `$.json.results`. Selectors are relative to each execution item’s `json`. Route coordinates remain geometry inside a single route and have no collection selector. Public route alternatives and elevation results have explicit selectors; a reverse lookup remains a single result.

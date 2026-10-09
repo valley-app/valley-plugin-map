@@ -32,6 +32,7 @@ import { Planner } from './Planner'
 import { Settings } from './SettingsView'
 import { initLocalization } from './localization'
 import { mapAgentTools } from './agentTools'
+import { registerMapFileCommands } from './fileCommands'
 
 export function register(api: ValleyPluginApi): () => Promise<void> {
   initLocalization(api)
@@ -52,6 +53,7 @@ export function register(api: ValleyPluginApi): () => Promise<void> {
   api.registerView('map.settings', Settings)
 
   const offCommands = registerMapboxCommands(api)
+  const offFileCommands = registerMapFileCommands(api)
   const offAgentTools = api.interop.services.provide(AGENT_TOOL_PROVIDER_V1, mapAgentTools(api))
   const offFence = api.markdown.registerCodeBlockRenderer('map', (code, element, context) => renderMapFence(code, element, api, context.meta ?? ''), { examples: codeBlockExamples.map })
   const offDashRow = api.ui.registerDashboardRow('map', MapDashboardRow)
@@ -128,6 +130,7 @@ export function register(api: ValleyPluginApi): () => Promise<void> {
     offDashRow()
     offFence()
     offCommands()
+    offFileCommands()
     offAgentTools()
     const drained = disposeStore(store)
     disposeStyles()

@@ -173,7 +173,7 @@ export function mapPresentationSettings(
   const requested = overrides.provider ?? (savedProvider && savedProvider !== 'inherit' ? savedProvider : settings.basemapProvider)
   const account = parseAccountProviderChoice(requested)
   const free = ['free', 'carto', 'osm', 'esri'].includes(requested.toLowerCase())
-  const usable = connections.filter(connection => connection.secretState === 'ok' && connection.capabilities.includes('map.style'))
+  const usable = connections.filter(connection => (connection.secretState === 'ok' || connection.secretState === 'stored') && connection.capabilities.includes('map.style'))
   const connection = free ? undefined : account
     ? usable.find(connection => connection.id === account.connectionId && connection.provider === account.provider)
     : usable.find(connection => connection.provider === requested.toLowerCase() && connection.id === settings.mapboxConnectionId)

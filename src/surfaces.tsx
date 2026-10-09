@@ -1,3 +1,4 @@
+import { mapCommandResult } from './commandResults'
 import { METADATA_PANEL_SEGMENT_V1, provideBookmarkSurface, type PluginInspectionSubject, type PluginProperty, type ValleyPluginApi } from '@valley/plugin-sdk'
 import type { WorkspaceViewStateValue } from '@valley/plugin-sdk/types'
 import { React, api } from './runtime'
@@ -397,6 +398,7 @@ const Properties = ({ subject }: { subject?: PluginInspectionSubject }): React.R
 
 export function registerMapSurfaces(pluginApi: ValleyPluginApi): () => void {
   const store = getStore()!
+  let active = true
   const surfaces = ['main_workspace', 'left_sidebar', 'right_sidebar'] as const
   const offs = surfaces.map((surface) => provideBookmarkSurface(pluginApi, {
     id: `map.${surface}`, surface, subscribe: listener => { const off = store.subscribe(listener); const offFiles = subscribeMapFileBookmarks(listener); return () => { off(); offFiles() } },
@@ -441,12 +443,18 @@ export function registerMapSurfaces(pluginApi: ValleyPluginApi): () => void {
     render: ({ relPath }) => <FileInfo relPath={relPath} />
   }))
   offs.push(pluginApi.commands.register<EditInput, { updated: string[] }, 'write'>({
+    outputSchema: mapCommandResult('properties-edit'), limits: { requestBytes: 1048576, responseBytes: 1048576 }, recovery: 'non-replayable',
     id: 'properties-edit', label: 'Map: Edit properties', labelKey: 'surface.edit', paletteSafe: false, sideEffect: 'write',
     input: { schema: { type: 'object', required: ['subject', 'values'], properties: { subject: { type: 'object' }, values: { type: 'object' } }, additionalProperties: false }, parse: (raw) => {
       const input = raw as EditInput
       if (input?.subject?.pluginId !== 'map' || !surfaces.includes(input.subject.surface as typeof surfaces[number]) || !input.values || typeof input.values !== 'object' || Array.isArray(input.values)) throw new Error(uiText('surface.invalid'))
       return input
-    } }, revision: async ({ subject }) => { await store.ready; return selectedRecord(subject).record }, preview: async ({ subject, values }) => { await store.ready; return { before: selectedRecord(subject).record, changes: values } }, run: editProperties
+    } }, revision: async ({ subject }) => { await store.ready; return selectedRecord(subject).record }, preview: async ({ subject, values }) => { await store.ready; return { before: selectedRecord(subject).record, changes: values } }, run: async (input, context) => {
+      await store.ready
+      if (!active || getStore() !== store) throw new Error(uiText('surface.unavailable'))
+      context.cancellation?.throwIfAborted()
+      return editProperties(input)
+    }
   }))
-  return () => offs.forEach((off) => off())
+  return () => { active = false; offs.forEach((off) => off()) }
 }

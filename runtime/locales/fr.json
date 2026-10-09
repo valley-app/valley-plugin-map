@@ -374,6 +374,7 @@
   "settings.centerPlaceholder": "Longitude, latitude",
   "provider.settings.accountDescription": "Le compte {{provider}} enregistré que Map utilise pour ses requêtes.",
   "provider.settings.status": "État",
+  "provider.status.stored": "Clé enregistrée — vérification lors de son utilisation.",
   "provider.status.connected": "Connecté : la clé enregistrée fonctionne.",
   "provider.status.unreadable": "La clé enregistrée est illisible. Remplacez-la dans Comptes.",
   "provider.status.setup": "Aucun compte choisi pour l’instant.",

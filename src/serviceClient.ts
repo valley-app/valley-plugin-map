@@ -15,7 +15,7 @@ export interface MapConnectionInfo {
   displayName: string
   email?: string
   capabilities: string[]
-  secretState: 'absent' | 'ok' | 'unreadable'
+  secretState: 'absent' | 'stored' | 'ok' | 'unreadable'
   usage?: MapUsageQuota[]
 }
 

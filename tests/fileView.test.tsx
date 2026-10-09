@@ -11,20 +11,24 @@ import { createMapEngine } from '../src/island'
 import type { MapEngine, MapEngineOptions } from '../src/mapEngine'
 import { createStore, disposeStore } from '../src/store'
 import { initLocalization } from '../src/localization'
+import { registerMapFileCommands } from '../src/fileCommands'
+import type { MountedPluginView } from '@valley/plugin-sdk'
+import Ajv from 'ajv'
 
 vi.mock('../src/island', () => ({ createMapEngine: vi.fn() }))
 
 const maps: ReturnType<typeof mockEngine>[] = []
 const owners: MapRenderOwner[] = []
 function mockEngine() {
-  return { setFileData: vi.fn(), fitTo: vi.fn(), setStyle: vi.fn(), setUnits: vi.fn(), zoomBy: vi.fn(), destroy: vi.fn() }
+  return { setFileData: vi.fn(), fitTo: vi.fn(), setStyle: vi.fn(), setUnits: vi.fn(), zoomBy: vi.fn(), jumpTo: vi.fn(), destroy: vi.fn() }
 }
 function setup(files: Record<string, string>) {
   const mock = createMockValleyApi({ manifest: { id: 'map' }, files })
   owners.push(initRuntime(mock.api))
   initLocalization(mock.api)
-  vi.mocked(createMapEngine).mockImplementation(async () => {
+  vi.mocked(createMapEngine).mockImplementation(async options => {
     const map = mockEngine(); maps.push(map)
+    map.jumpTo.mockImplementation((center, zoom, bearing, pitch) => options.onCameraChange?.({ center, zoom, bearing, pitch }))
     return map as unknown as MapEngine
   })
   return mock
@@ -38,6 +42,40 @@ afterEach(async () => {
   maps.length = 0
   vi.restoreAllMocks()
   vi.clearAllMocks()
+})
+
+it('commands drive all nine read-only file actions through the exact ready engine and inspect their camera and feature effects', async () => {
+  const source = point(), mock = setup({ 'a.geojson': source })
+  const off = registerMapFileCommands(mock.api)
+  const target: MountedPluginView = { mountId: 'map-first', generation: 1, area: 'main', paneId: 'pane', tabId: 'tab', filePath: 'a.geojson', pluginId: 'map' }
+  const other = { ...target, mountId: 'map-second', tabId: 'second' }
+  const view = render(<><FileView relPath="a.geojson" mountedView={target} /><FileView relPath="a.geojson" mountedView={other} /></>)
+  const command = (id: string) => mock.commands.find(command => command.id === id || command.id.endsWith(`:${id}`))!
+  const inspect = async () => { const definition = command('file-view-inspect'); return await definition.run(definition.input!.parse({ target: { mountId: target.mountId, generation: 1 } }), { caller: 'agent' }) as { revision: string; view: { camera: unknown; selected: number | null } } }
+  const control = command('file-view-control')
+  const invoke = async (action: unknown, expectedRevision?: string, allowed = true) => {
+    const current = await inspect(); let failure: unknown
+    await act(async () => { try { await control.run(control.input!.parse({ target: { mountId: target.mountId, generation: 1 }, expectedRevision: expectedRevision ?? current.revision, action }), { caller: 'agent', validateBeforeRun: async () => allowed }) } catch (cause) { failure = cause } })
+    if (failure) throw failure
+  }
+  try {
+    await waitFor(() => expect(maps[1]?.fitTo).toHaveBeenCalledOnce())
+    act(() => vi.mocked(createMapEngine).mock.calls[0][0].onCameraChange?.({ center: [8, 47], zoom: 10, bearing: 0, pitch: 0 }))
+    const original = await inspect()
+    await invoke({ type: 'zoom-in' }); await invoke({ type: 'zoom-out' }); expect(maps[0].zoomBy.mock.calls).toEqual([[1], [-1]]); expect(maps[1].zoomBy).not.toHaveBeenCalled()
+    await invoke({ type: 'fit' }); expect(maps[0].fitTo).toHaveBeenCalledTimes(2)
+    await invoke({ type: 'select', index: 0 }); expect(screen.getByRole('complementary', { name: 'Feature details' })).toHaveTextContent('Zürich'); expect((await inspect()).view.selected).toBe(0)
+    await invoke({ type: 'dismiss' }); expect(document.querySelector('.map-file-details')).toBeNull()
+    for (const patch of [{ lng: 9, lat: 48 }, { zoom: 12 }, { bearing: 30 }, { pitch: 40 }]) { await invoke({ type: 'camera', patch }); expect((await inspect()).view.camera).toMatchObject(patch) }
+    expect(maps[0].jumpTo).toHaveBeenLastCalledWith([9, 48], 12, 30, 40); expect(maps[1].jumpTo).not.toHaveBeenCalled()
+    await expect(invoke({ type: 'fit' }, original.revision)).rejects.toMatchObject({ code: 'REVISION_CONFLICT', outcome: 'not-applied' })
+    await expect(invoke({ type: 'zoom-in' }, undefined, false)).rejects.toMatchObject({ code: 'PERMISSION_DENIED' })
+    await expect(invoke({ type: 'select', index: 99 })).rejects.toMatchObject({ outcome: 'not-applied' })
+    expect(() => control.input!.parse({ target: { mountId: target.mountId, generation: 1 }, expectedRevision: 'r', action: { type: 'camera', patch: { lat: 100, lng: 8 } } })).toThrow()
+    const ajv = new Ajv({ strict: true }); expect(() => ajv.compile(control.input!.schema!)).not.toThrow(); expect(ajv.compile(command('file-view-inspect').outputSchema!)(await inspect())).toBe(true)
+    expect(await mock.api.vault.readFile('a.geojson')).toBe(source); expect(mock.api.vault.writeFileGuarded).not.toHaveBeenCalled()
+    view.unmount(); await expect(inspect()).rejects.toMatchObject({ code: 'TARGET_REPLACED' })
+  } finally { off() }
 })
 
 it('renders independent file tabs, fits each file, and exposes safe feature details and map controls', async () => {

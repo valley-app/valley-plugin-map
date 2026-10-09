@@ -486,6 +486,7 @@ it('resolves separate embed defaults and explicit overrides, falling back to fre
   expect(options).toEqual({ style: 'satellite', provider: 'mapbox', theme: 'light' })
   expect(parseMapPresentation('style: outdoors\nprovider: mapbox\ntheme: dark')).toEqual({ style: 'outdoors', provider: 'mapbox', theme: 'dark' })
   expect(mapPresentationSettings(raw, 'embed', {}, [connection]).settings).toMatchObject({ defaultStyle: 'satellite', basemapProvider: 'account:mapbox:forest' })
+  expect(mapPresentationSettings(raw, 'embed', {}, [{ ...connection, secretState: 'stored' }]).settings).toMatchObject({ defaultStyle: 'satellite', basemapProvider: 'account:mapbox:forest' })
   expect(mapPresentationSettings(raw, 'codeBlock', {}, [connection]).settings.defaultStyle).toBe('streets')
   expect(mapPresentationSettings(raw, 'codeBlock', options, [connection])).toMatchObject({ theme: 'light', settings: { defaultStyle: 'satellite', basemapProvider: 'account:mapbox:forest' } })
   for (const connections of [[], [{ ...connection, secretState: 'missing' }], [{ ...connection, capabilities: ['geo.search'] }]]) {

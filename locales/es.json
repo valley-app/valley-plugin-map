@@ -374,6 +374,7 @@
   "settings.centerPlaceholder": "Longitud, latitud",
   "provider.settings.accountDescription": "La cuenta de {{provider}} guardada que Map usa para sus solicitudes.",
   "provider.settings.status": "Estado",
+  "provider.status.stored": "Clave guardada — se comprobará al usarla.",
   "provider.status.connected": "Conectado: la clave guardada funciona.",
   "provider.status.unreadable": "No se puede leer la clave guardada. Sustitúyela en Cuentas.",
   "provider.status.setup": "Aún no se ha elegido ninguna cuenta.",

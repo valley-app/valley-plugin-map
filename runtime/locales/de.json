@@ -374,6 +374,7 @@
   "settings.centerPlaceholder": "Längengrad, Breitengrad",
   "provider.settings.accountDescription": "Das gespeicherte {{provider}}-Konto, das Map für seine Anfragen verwendet.",
   "provider.settings.status": "Status",
+  "provider.status.stored": "Schlüssel gespeichert — wird bei Verwendung geprüft.",
   "provider.status.connected": "Verbunden – der gespeicherte Schlüssel funktioniert.",
   "provider.status.unreadable": "Der gespeicherte Schlüssel ist nicht lesbar. Ersetze ihn unter Konten.",
   "provider.status.setup": "Noch kein Konto gewählt.",

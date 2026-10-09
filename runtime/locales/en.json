@@ -374,6 +374,7 @@
   "settings.centerPlaceholder": "Longitude, latitude",
   "provider.settings.accountDescription": "The saved {{provider}} account Map uses for its requests.",
   "provider.settings.status": "Status",
+  "provider.status.stored": "Key saved — checked when used.",
   "provider.status.connected": "Connected — the saved key works.",
   "provider.status.unreadable": "The saved key can’t be read. Replace it in Accounts.",
   "provider.status.setup": "No account chosen yet.",

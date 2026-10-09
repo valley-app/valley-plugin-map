@@ -374,6 +374,7 @@
   "settings.centerPlaceholder": "经度, 纬度",
   "provider.settings.accountDescription": "Map 发送请求时使用的已保存 {{provider}} 账户。",
   "provider.settings.status": "状态",
+  "provider.status.stored": "密钥已保存，将在使用时验证。",
   "provider.status.connected": "已连接，已保存的密钥可用。",
   "provider.status.unreadable": "无法读取已保存的密钥。请在账户中替换。",
   "provider.status.setup": "尚未选择账户。",

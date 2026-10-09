@@ -1,3 +1,4 @@
+import { mapCommandResult } from './commandResults'
 import type { PluginCommand, ValleyPluginApi } from '@valley/plugin-sdk'
 import { getStore } from './store'
 import { defaultPinSource, sanitizePinSource } from './pinSources'
@@ -19,21 +20,24 @@ const mode = (value: unknown): TravelMode => {
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false })
 const string = { type: 'string', minLength: 1 }
 const json = (value: unknown): unknown => typeof value === 'string' ? JSON.parse(value) : value
+const refused = (code: string, message: string) => Object.assign(new Error(message), { code, outcome: 'not-applied' as const })
 
 export function registerMapAutomation(api: ValleyPluginApi): () => void {
   const store = getStore()!
+  let active = true
   const offs: (() => void)[] = []
   const register = <I, O, E extends 'read' | 'write'>(command: PluginCommand<I, O, E>): void => {
-    offs.push(api.commands.register({ ...command, run: async (input: I, ctx) => { await store.ready; return command.run(input, ctx) } }))
+    offs.push(api.commands.register({ ...command, outputSchema: mapCommandResult(command.id), limits: { requestBytes: 1048576, responseBytes: 1048576 }, recovery: command.sideEffect === 'read' ? 'observational' : 'non-replayable', run: async (input: I, ctx) => { await store.ready; if (!active || getStore() !== store) throw Object.assign(new Error(uiText('surface.unavailable')), { outcome: 'not-applied' }); ctx.cancellation?.throwIfAborted(); return command.run(input, ctx) } }))
   }
   const sourcesRevision = async () => { await store.ready; return store.getSnapshot().pinSources }
   const saveSources = async (sources: PinSource[]): Promise<void> => {
-    if (!store.savePinSources(sources)) throw new Error(uiText('surface.invalid'))
+    // savePinSources refuses before it changes anything, so a false return had no effect.
+    if (!store.savePinSources(sources)) throw refused('PIN_SOURCES_UNAVAILABLE', uiText('surface.unavailable'))
     await store.flushPinSources()
   }
   const routeById = (id: string): Route => {
     const route = store.getSnapshot().routes.find((entry) => entry.id === id || entry.name === id)
-    if (!route) throw new Error(uiText('surface.unavailable'))
+    if (!route) throw Object.assign(new Error(`No saved route "${id}".`), { code: 'NOT_FOUND', outcome: 'not-applied' })
     return route
   }
   register({ id: 'list-pin-sources', label: 'Map: List pin sources', labelKey: 'surface.listSources', sideEffect: 'read', run: () => structuredClone(store.getSnapshot().pinSources) })
@@ -44,9 +48,9 @@ export function registerMapAutomation(api: ValleyPluginApi): () => void {
     run: async ({ source }) => {
       const previous = structuredClone(store.getSnapshot().pinSources)
       const existing = typeof source.id === 'string' ? previous.find((entry) => entry.id === source.id) : undefined
-      if (source.id && !existing) throw new Error(uiText('surface.unavailable'))
+      if (source.id && !existing) throw refused('NOT_FOUND', `No pin source "${String(source.id)}".`)
       const merged = { ...(existing ?? defaultPinSource(previous)), ...source }
-      if (!str(merged.title) || !['address', 'coordinate'].includes(String(merged.locationMode)) || !['filename', 'property'].includes(String(merged.labelMode)) || typeof merged.visible !== 'boolean' || typeof merged.hidden !== 'boolean' || !Array.isArray(merged.hoverFields) || merged.hoverFields.some((value) => typeof value !== 'string')) throw new Error(uiText('surface.invalid'))
+      if (!str(merged.title) || !['address', 'coordinate'].includes(String(merged.locationMode)) || !['filename', 'property'].includes(String(merged.labelMode)) || typeof merged.visible !== 'boolean' || typeof merged.hidden !== 'boolean' || !Array.isArray(merged.hoverFields) || merged.hoverFields.some((value) => typeof value !== 'string')) throw refused('INVALID_INPUT', uiText('surface.invalid'))
       const next = sanitizePinSource(merged)
       await saveSources(existing ? previous.map((entry) => entry.id === next.id ? next : entry) : [...previous, next])
       return { value: next, revert: { label: uiText('surface.saveSource'), run: () => saveSources(previous) } }
@@ -58,7 +62,7 @@ export function registerMapAutomation(api: ValleyPluginApi): () => void {
     revision: sourcesRevision, preview: ({ id }) => ({ deletedSourceId: id }),
     run: async ({ id }) => {
       const previous = structuredClone(store.getSnapshot().pinSources)
-      if (!previous.some((entry) => entry.id === id)) throw new Error(uiText('surface.unavailable'))
+      if (!previous.some((entry) => entry.id === id)) throw refused('NOT_FOUND', `No pin source "${id}".`)
       await saveSources(previous.filter((entry) => entry.id !== id))
       return { value: { id }, revert: { label: uiText('surface.deleteSource'), run: () => saveSources(previous) } }
     }
@@ -68,7 +72,7 @@ export function registerMapAutomation(api: ValleyPluginApi): () => void {
     input: { schema: schema({ ids: { type: 'array', items: string, uniqueItems: true } }, ['ids']), parse: (raw) => { const ids = object(raw).ids; if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string') || new Set(ids).size !== ids.length) throw new Error(uiText('surface.invalid')); return { ids } }, fromCli: (args) => ({ ids: args }) },
     revision: sourcesRevision, run: async ({ ids }) => {
       const previous = structuredClone(store.getSnapshot().pinSources)
-      if (ids.length !== previous.length || ids.some((id) => !previous.some((entry) => entry.id === id))) throw new Error(uiText('surface.invalid'))
+      if (ids.length !== previous.length || ids.some((id) => !previous.some((entry) => entry.id === id))) throw refused('INVALID_INPUT', uiText('surface.invalid'))
       await saveSources(ids.map((id) => previous.find((entry) => entry.id === id)!))
       return { value: ids, revert: { label: uiText('surface.reorderSources'), run: () => saveSources(previous) } }
     }
@@ -85,10 +89,10 @@ export function registerMapAutomation(api: ValleyPluginApi): () => void {
       return { value: { stops, mode }, revert: { label: uiText('surface.setPlanner'), run: async () => { store.setPlannerMode(previous.plannerMode); store.setStops(previous.plannerStops); await store.flushSessionAsync() } } }
     }
   })
-  register<{ id: string }, { id: string }, 'read'>({
-    id: 'show-route', label: 'Map: Show saved route', labelKey: 'surface.showRoute', paletteSafe: false, sideEffect: 'read',
+  register<{ id: string }, { id: string }, 'write'>({
+    id: 'show-route', label: 'Map: Show saved route', labelKey: 'surface.showRoute', paletteSafe: false, sideEffect: 'write',
     input: { schema: schema({ id: string }, ['id']), parse: (raw) => { const id = str(object(raw).id); if (!id) throw new Error(uiText('surface.invalid')); return { id } }, fromCli: (args, flags) => ({ id: flags.id ?? args.join(' ') }) },
-    run: ({ id }) => { const route = routeById(id); store.showRoute(route); return { id: route.id } }
+    run: async ({ id }) => { const route = routeById(id); store.showRoute(route); await store.flushSessionAsync(); return { value: { id: route.id }, revert: null } }
   })
   register<{ id: string; format: 'gpx' | 'geojson' }, { format: string; content: string }, 'read'>({
     id: 'export-route', label: 'Map: Export route data', labelKey: 'surface.exportRoute', paletteSafe: false, sideEffect: 'read',
@@ -106,14 +110,20 @@ export function registerMapAutomation(api: ValleyPluginApi): () => void {
     preview: ({ name, path, format }) => ({ name, path: path || undefined, format }),
     run: async ({ name, path, content, format, mode }) => {
       let text = content
-      if (path) { const result = await api.drivers.files.readFile(path); if (!result.ok) throw new Error(uiText('surface.invalid')); text = result.data?.content ?? '' }
-      if (text.length > 2000000) throw new Error(uiText('surface.invalid'))
+      // Everything before importRoute only reads, so each refusal here had no effect.
+      if (path) {
+        const result = await api.drivers.files.readFile(path).catch(() => null)
+        if (!result?.ok) throw refused('FILE_UNAVAILABLE', uiText('surface.invalid'))
+        text = result.data?.content ?? ''
+      }
+      if (text.length > 2000000) throw refused('INVALID_INPUT', uiText('surface.invalid'))
       const parsed = format === 'gpx' ? gpxToRoute(text) : parseRouteFromGeoJson(text)
-      if (!parsed || parsed.waypoints.length < 2) throw new Error(uiText('surface.invalid'))
-      const waypoints = validateMapWaypoints(parsed.waypoints)
+      if (!parsed || parsed.waypoints.length < 2) throw refused('INVALID_INPUT', uiText('surface.invalid'))
+      let waypoints: Waypoint[]
+      try { waypoints = validateMapWaypoints(parsed.waypoints) } catch { throw refused('INVALID_INPUT', uiText('surface.invalid')) }
       const route = await store.importRoute(name, waypoints, parsed.geometry, mode)
       return { value: route, revert: { label: uiText('surface.importRoute'), run: async () => { if (!await store.removeRouteRaw(route.id)) throw new Error(uiText('surface.invalid')) } } }
     }
   })
-  return () => offs.forEach((off) => off())
+  return () => { active = false; offs.forEach((off) => off()) }
 }

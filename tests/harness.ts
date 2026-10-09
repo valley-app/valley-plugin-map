@@ -1,3 +1,4 @@
+import Ajv from 'ajv'
 import { assertCommandOutput } from './commandContracts'
 import * as React from 'react'
 import { createMockValleyApi as createBaseMock, type MockValleyApi } from '@valley/plugin-testkit'
@@ -38,6 +39,17 @@ function DescribedSelectField({ value, onChange, options, ariaLabel, placeholder
 export function createMockValleyApi(options: Parameters<typeof createBaseMock>[0] = {}): MockValleyApi {
   const custom = options.overrides?.backend && overrides.get(options.overrides.backend)
   const mock = createBaseMock(options)
+  const registerCommand = mock.api.commands.register.bind(mock.api.commands)
+  const compiler = new Ajv({ strict: true })
+  mock.api.commands.register = command => {
+    const validate = command.outputSchema ? compiler.compile(command.outputSchema) : null
+    return registerCommand({ ...command, run: async (input, context) => {
+      const result = await command.run(input, context)
+      const value = command.sideEffect === 'write' && result && typeof result === 'object' && 'value' in result ? result.value : result ?? null
+      if (validate && !validate(value)) throw new Error(`Invalid Map command result ${command.id}: ${JSON.stringify(validate.errors)}`)
+      return result
+    } })
+  }
   mock.api.ui.settings.SelectField = DescribedSelectField
   const listeners = new Map<string, Set<(payload: unknown) => void>>()
   eventListeners.set(mock.api, listeners)

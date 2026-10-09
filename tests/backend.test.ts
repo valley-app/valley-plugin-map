@@ -34,6 +34,15 @@ function setup(accounts: PluginAccountConnection[] = [], storage?: PluginBackend
 }
 
 describe('Map package backend', () => {
+  it('returns unchecked saved accounts through the command schema without authorizing them', async () => {
+    const mock = setup([{ ...account('forest', 'mapbox'), credentialState: 'stored' }])
+    try {
+      expect(await mock.callOperation(commandContracts.find(entry => entry.command.id === 'listConnections')!.method, {})).toMatchObject({ ok: true, data: { connections: [{ id: 'forest', secretState: 'stored' }] } })
+      expect(mock.authorize).not.toHaveBeenCalled()
+      expect(mock.fetch).not.toHaveBeenCalled()
+    } finally { mock.dispose() }
+  })
+
   it.each([
     { id: 'listConnections', input: {}, response: null },
     { id: 'geocode', input: { connectionId: 'tiles', query: 'Forest' }, response: { features: [{ id: 'place.1', geometry: { coordinates: [8, 12] }, properties: { name: 'Forest', full_address: 'Forest, Reserve' } }] } },

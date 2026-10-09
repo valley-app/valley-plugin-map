@@ -71,7 +71,7 @@ const QuotaRow: FC<{ connection?: MapConnectionInfo; service: 'routing' | 'eleva
         <span>{uiText('usage.remaining', { remaining: quota.remaining })}</span>
         <span className="map-usage-detail">{uiText('usage.observed', { date: new Date(quota.observedAt).toLocaleString() })}</span>
         {quota.resetAt !== undefined && <span className="map-usage-detail">{uiText('usage.reset', { date: new Date(quota.resetAt).toLocaleString() })}</span>}
-      </> : <span>{uiText(connection?.secretState === 'ok' ? 'usage.noSnapshot' : 'provider.unavailable')}</span>}
+      </> : <span>{uiText((connection?.secretState === 'ok' || connection?.secretState === 'stored') ? 'usage.noSnapshot' : 'provider.unavailable')}</span>}
     </dd>
   </div>
 }
@@ -105,7 +105,7 @@ export const MapProviderSelect: FC<{ settingKey?: string }> = ({ settingKey = 'b
   const options: MapSelectOption[] = [
     ...(settingKey === 'basemapProvider' ? [] : [{ value: 'inherit', label: uiText('embed.inherit') }]),
     { value: 'free', label: uiText('provider.free') },
-    ...connections.filter(connection => connection.secretState === 'ok' && connection.capabilities.includes('map.style')).map(connection => ({
+    ...connections.filter(connection => (connection.secretState === 'ok' || connection.secretState === 'stored') && connection.capabilities.includes('map.style')).map(connection => ({
       ...connectionOption(connection, accountProviderChoice(connection.provider, connection.id)),
       label: `${connection.provider === 'mapbox' ? 'Mapbox' : connection.provider} · ${connection.displayName}`
     }))
@@ -143,7 +143,7 @@ export const ProviderPanel: FC<{ routing?: boolean }> = ({ routing = false }) =>
   const secondaryValue = routing ? effectiveElevationProvider(settings) : effectiveSearchProvider(settings)
   const secondaryLabel = uiText(routing ? 'auto.91fed541a689' : 'auto.a9855411ca93')
   const selected = parseAccountProviderChoice(primaryValue)
-  const available = connections.filter((connection) => connection.secretState === 'ok')
+  const available = connections.filter((connection) => (connection.secretState === 'ok' || connection.secretState === 'stored'))
   const primaryAccounts = available.filter((connection) => connection.capabilities.includes(routing ? 'geo.route' : 'map.style'))
   const secondaryAccounts = available.filter((connection) => connection.capabilities.includes(routing ? 'geo.elevation' : 'geo.search'))
   const providers = [...new Set(primaryAccounts.map((connection) => connection.provider))]

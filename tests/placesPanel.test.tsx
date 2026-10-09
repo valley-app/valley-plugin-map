@@ -46,6 +46,7 @@ interface Mounted {
 async function renderPanel(places: DataRecord[] = []): Promise<Mounted> {
   const mock = createMockValleyApi({
     manifest: { id: 'map', drivers: ['files'] },
+    vault: { path: '/fixtures/map-places', name: 'Map places', displayName: 'Map places' },
     indexEntries: [
       { relPath: 'Apple/The Macintosh.md', title: 'The Macintosh', kind: 'note', mtimeMs: 0 },
       { relPath: 'Apple/The Product Line Cut.md', title: 'The Product Line Cut', kind: 'note', mtimeMs: 0 }

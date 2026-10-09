@@ -140,11 +140,17 @@ async function datasetRows(api: ValleyPluginApi, dataset: string, where?: Datase
   return rows
 }
 
+/** The host's dataset IPC only carries JSON values: an absent optional field
+ *  (`note: undefined`) is stored as SQL NULL, never sent as `undefined`. */
+function datasetValues(record: DataRecord): DatasetRecord {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, value === undefined ? null : value])) as DatasetRecord
+}
+
 function rowStore(api: ValleyPluginApi, dataset: string): RecordStore {
   return {
     read: async () => (await datasetRows(api, dataset)) as DataRecord[],
     append: async (record) => {
-      const values = { ...record } as DatasetRecord
+      const values = datasetValues(record)
       if (dataset === PLACES_DATASET) {
         const page = await api.data.dataset(dataset).query({ orderBy: [{ field: 'position', direction: 'desc' }], limit: 1 })
         values.position = page.rows.length ? Number(page.rows[0].position ?? 0) + 1 : 0
@@ -152,7 +158,7 @@ function rowStore(api: ValleyPluginApi, dataset: string): RecordStore {
       return (await api.data.dataset(dataset).upsert(values)).affected > 0
     },
     update: async (idField, idValue, record) => {
-      const values = { ...record } as DatasetRecord
+      const values = datasetValues(record)
       delete values[idField]
       return (await api.data.dataset(dataset).update({ [idField]: idValue }, values)).affected > 0
     },
@@ -161,7 +167,7 @@ function rowStore(api: ValleyPluginApi, dataset: string): RecordStore {
       const existing = await datasetRows(api, dataset)
       const operations: DatasetBatchOperation[] = [
         ...existing.map((row) => ({ operation: 'delete' as const, key: { id: String(row.id) } })),
-        ...records.map((record, position) => ({ operation: 'insert' as const, values: { ...record, ...(dataset === PLACES_DATASET ? { position } : {}) } as DatasetRecord }))
+        ...records.map((record, position) => ({ operation: 'insert' as const, values: { ...datasetValues(record), ...(dataset === PLACES_DATASET ? { position } : {}) } }))
       ]
       if (operations.length) await api.data.dataset(dataset).batch(operations)
       return true
@@ -659,7 +665,7 @@ export class MapStore {
     if (this.disposed) return
     const settings = resolveSettings(this.api.settings.get())
     this.mapStyleConnections = (result.ok ? result.data?.connections ?? [] : []).filter((connection) =>
-      connection.secretState === 'ok' &&
+      (connection.secretState === 'ok' || connection.secretState === 'stored') &&
       (connection.provider !== 'mapbox' || settings.mapboxEnabled) &&
       (connection.provider !== 'openrouteservice' || settings.openRouteServiceEnabled)
     )
@@ -870,6 +876,11 @@ export class MapStore {
     // The one point where a settled camera reaches the snapshot — see the
     // `camera` field's note on why this is not `rememberView`.
     this.emit()
+  }
+
+  async flushViewAsync(): Promise<void> {
+    this.flushView()
+    if (!await this.viewWrite) throw new Error(uiText('surface.invalid'))
   }
 
   // ---- remembered sidebar session ------------------------------------------

@@ -13,6 +13,7 @@ import { uiText } from './localization'
 import { formatDistance, formatDuration, formatLatLng, formatLength } from './format'
 import type { ValleyUnits } from '@valley/plugin-sdk/units'
 import { Crosshair, Minus, Plus, X } from './icons'
+import { useMapFileCommands } from './fileCommands'
 
 interface MapFileBookmark {
   v: 1
@@ -38,7 +39,7 @@ export function restoreMapFileBookmark(value: Record<string, unknown>): void {
   owner.listeners.forEach(listener => listener())
 }
 
-type FileState = { path: string; status: 'loading' | 'error' | 'loaded'; data?: MapFileData; error?: string }
+type FileState = { path: string; status: 'loading' | 'error' | 'loaded'; data?: MapFileData; error?: string; sourceRevision?: string }
 
 /** The selected feature in reading order: what it is and where, what it measures, then its own fields. */
 const FeatureDetails: FC<{ feature: MapFileFeature; units: ValleyUnits; onClose: () => void }> = ({ feature, units, onClose }) => {
@@ -69,7 +70,7 @@ const FeatureDetails: FC<{ feature: MapFileFeature; units: ValleyUnits; onClose:
   </aside>
 }
 
-export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean; embedOptions?: readonly string[] }> = ({ relPath, tab, embedded = false, embedOptions = [] }) => {
+export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean; embedOptions?: readonly string[] }> = ({ relPath, tab, mountedView, embedded = false, embedOptions = [] }) => {
   const [owner] = React.useState(() => captureMapRenderOwner(api))
   const { store, snap } = useMap()
   const [restoredPresentation, setRestoredPresentation] = React.useState<MapFileBookmark | null>(null)
@@ -97,7 +98,7 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
   const style = embedded ? settings.defaultStyle : restoredPresentation?.path === relPath ? restoredPresentation.style : store ? snap.style : settings.defaultStyle
   const options = React.useRef({ settings, theme, style, units: snap.units })
   options.current = { settings, theme, style, units: snap.units }
-  const current = state.path === relPath ? state : { path: relPath, status: 'loading' as const }
+  const current: FileState = state.path === relPath ? state : { path: relPath, status: 'loading' }
   const data = current.data
   const feature = selected === null ? null : data?.collection.features[selected]
   const selectedPosition = React.useMemo(() => {
@@ -145,7 +146,7 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
         if (disposed || request !== generation || !owner.isActive()) return
         if (!file?.baseline) { setState({ path: relPath, status: 'error', error: 'file.unreadable' }); return }
         const parsed = parseMapFile(relPath, file.content)
-        setState({ path: relPath, status: 'loaded', data: parsed })
+        setState({ path: relPath, status: 'loaded', data: parsed, sourceRevision: JSON.stringify(file.baseline) })
       } catch (error) {
         if (!disposed && request === generation && owner.isActive()) setState({ path: relPath, status: 'error', error: error instanceof MapFileError ? error.key : 'file.unreadable' })
       }
@@ -192,6 +193,14 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
     if (owner.isActive()) engine?.setStyle(style, theme, options.current.settings)
   }, [engine, owner, style, theme, settingsKey])
   React.useEffect(() => { if (owner.isActive()) engine?.setUnits(snap.units) }, [engine, owner, snap.units])
+  useMapFileCommands(embedded ? undefined : mountedView, () => ({ status: current.status, engineReady: Boolean(engine && !mapError && owner.isActive()), sourceRevision: current.sourceRevision ?? '', camera: detailCamera, selected, featureCount: data?.collection.features.length ?? 0, hasBounds: Boolean(data?.bounds), readOnly: true }), action => {
+    if (!owner.isActive() || !engine || mapError || current.status !== 'loaded') throw Object.assign(new Error('The exact Map file engine or source is unavailable.'), { outcome: 'not-applied' })
+    if (action.type === 'zoom-in' || action.type === 'zoom-out') engine.zoomBy(action.type === 'zoom-in' ? 1 : -1)
+    else if (action.type === 'fit') { if (!data?.bounds) throw Object.assign(new Error('This Map file has no geometry bounds.'), { outcome: 'not-applied' }); engine.fitTo(data.bounds) }
+    else if (action.type === 'select') { if (!data?.collection.features[action.index]) throw Object.assign(new Error('This exact Map feature is missing.'), { outcome: 'not-applied' }); setSelected(action.index) }
+    else if (action.type === 'dismiss') setSelected(null)
+    else if (action.type === 'camera') { if (!detailCamera) throw Object.assign(new Error('The Map engine has not observed its camera yet.'), { outcome: 'not-applied' }); const next = { ...detailCamera, ...action.patch }; engine.jumpTo([next.lng, next.lat], next.zoom, next.bearing, next.pitch) }
+  })
 
   return <div className={`map-page map-file${embedded ? ' map-file-embed' : ''}`} data-file-state={current.status}>
     <div className="map-body">

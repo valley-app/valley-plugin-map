@@ -1,18 +1,19 @@
 /**
  * The map plugin's command-bus surface: typed `map:*` commands surfaced in
  * ⌘P, the terminal CLI (`valley mapbox …`) and the assistant agent. Handlers read
- * the live store via `getStore()` (hot-reload-safe). `save-place` is a `write`
- * and returns a bus revert for ⌘Z; the rest are `read`.
+ * the registered store and refuse a replaced owner. Durable and map-session
+ * changes are writes; saved records carry bus reverts for ⌘Z.
  */
 import type { PluginCommand, ValleyPluginApi } from '@valley/plugin-sdk'
 import { getStore, type MapStore } from './store'
 import { fullName } from './geocode'
 import { formatDistance, formatDuration } from './format'
 import type { MapStyleId, Place, Route, RouteStep, TravelMode, Waypoint } from './types'
-import { mapLayer } from './settings'
+import { MAP_LAYER_CHOICES, mapLayers } from './settings'
 import { uiText } from './localization'
 import { haversineMeters, isValidLngLat } from './geo'
 import { planRoute } from './routing'
+import { mapCommandResult } from './commandResults'
 
 function live(): MapStore {
   const store = getStore()
@@ -31,7 +32,14 @@ const asMode = (v: unknown): TravelMode => {
   if (s === 'cycling' || s === 'cycle' || s === 'bike') return 'cycling'
   return 'driving'
 }
-const asStyle = (v: unknown): MapStyleId => mapLayer(asStr(v).toLowerCase())
+const refused = (code: string, message: string) => Object.assign(new Error(message), { code, outcome: 'not-applied' })
+const STYLE_IDS = MAP_LAYER_CHOICES.map((choice) => choice.id)
+const asStyle = (v: unknown): MapStyleId => {
+  const style = asStr(v).trim().toLowerCase()
+  const known = STYLE_IDS.find((id) => id === style)
+  if (!known) throw refused('INVALID_INPUT', `Unknown map style "${asStr(v)}". Use one of: ${STYLE_IDS.join(', ')}.`)
+  return known
+}
 const asStrList = (v: unknown): string[] => {
   if (Array.isArray(v)) return v.map(asStr).map((s) => s.trim()).filter(Boolean)
   const s = asStr(v).trim()
@@ -42,13 +50,13 @@ const asStrList = (v: unknown): string[] => {
 function findPlace(name: string): Place {
   const q = name.trim().toLowerCase()
   const place = live().getSnapshot().places.find((p) => p.id === name || p.name.toLowerCase() === q)
-  if (!place) throw new Error(uiText('surface.unavailable'))
+  if (!place) throw refused('NOT_FOUND', `No saved place named "${name}".`)
   return place
 }
 function findRoute(name: string): Route {
   const q = name.trim().toLowerCase()
   const route = live().getSnapshot().routes.find((r) => r.id === name || r.name.toLowerCase() === q)
-  if (!route) throw new Error(uiText('surface.unavailable'))
+  if (!route) throw refused('NOT_FOUND', `No saved route named "${name}".`)
   return route
 }
 
@@ -64,14 +72,14 @@ async function resolvePoint(value: string): Promise<LookupPoint> {
   const pair = COORDINATE_PAIR.exec(text)
   if (pair) {
     const lat = Number(pair[1]), lng = Number(pair[2])
-    if (!isValidLngLat(lng, lat)) throw new Error(`Invalid coordinates "${text}". Use "lat, lng".`)
+    if (!isValidLngLat(lng, lat)) throw refused('INVALID_INPUT', `Invalid coordinates "${text}". Use "lat, lng".`)
     return { name: `${lat}, ${lng}`, lat, lng }
   }
   const store = live()
   const place = store.getSnapshot().places.find((p) => p.name.toLowerCase() === text.toLowerCase())
   if (place) return { name: place.name, lat: place.lat, lng: place.lng }
   const hits = await store.lookupPlaces(text)
-  if (hits.length === 0) throw new Error(`No results for "${text}".`)
+  if (hits.length === 0) throw refused('NOT_FOUND', `No results for "${text}".`)
   return { name: fullName(hits[0]), lat: hits[0].lat, lng: hits[0].lng }
 }
 
@@ -106,9 +114,11 @@ export function openOnMap(api: ValleyPluginApi): (request: { query: string }) =>
 
 /** Register every `map:*` command; returns a combined disposer. */
 export function registerMapboxCommands(api: ValleyPluginApi): () => void {
+  const owner = live()
+  let active = true
   const register = <I, O, E extends 'read' | 'write'>(command: PluginCommand<I, O, E>): (() => void) => api.commands.register({
-    ...command,
-    run: async (input: I, context) => { await live().ready; return command.run(input, context) }
+    ...command, outputSchema: mapCommandResult(command.id), limits: { requestBytes: 1048576, responseBytes: 1048576 }, recovery: command.sideEffect === 'read' ? 'observational' : 'non-replayable',
+    run: async (input: I, context) => { await owner.ready; if (!active || getStore() !== owner) throw Object.assign(new Error(uiText('surface.unavailable')), { outcome: 'not-applied' }); context.cancellation?.throwIfAborted(); return command.run(input, context) }
   })
   const placeRevision = async ({ name }: { name: string }) => { await live().ready; return findPlace(name) }
   const routeRevision = async ({ name }: { name: string }) => { await live().ready; return findRoute(name) }
@@ -116,10 +126,10 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
     register({
       id: 'open',
       label: 'Map: Open map', labelKey: 'auto.d5f9cda6b0f7',
-      sideEffect: 'read',
+      sideEffect: 'write',
       run: () => {
         api.workspace.openMainTab()
-        return undefined
+        return { value: null, revert: null }
       }
     }),
 
@@ -127,7 +137,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       id: 'search',
       label: 'Map: Search for a place', labelKey: 'auto.fb72cf76991a',
       paletteSafe: false,
-      sideEffect: 'read',
+      sideEffect: 'write',
       input: {
         schema: { type: 'object', properties: { query: { type: 'string', minLength: 1 } }, required: ['query'], additionalProperties: false },
         parse: (raw) => {
@@ -145,7 +155,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
         store.showAddress([top.lng, top.lat])
         // The full address, not the short lead the sidebar rows show — a CLI line
         // has no second row to carry the region on.
-        return { query, name: fullName(top), lng: top.lng, lat: top.lat, results: hits }
+        return { value: { query, name: fullName(top), lng: top.lng, lat: top.lat, results: hits }, revert: null }
       },
       formatCli: (v) => `Centred on ${v.name} (${v.lat.toFixed(4)}, ${v.lng.toFixed(4)})`
     }),
@@ -192,7 +202,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       id: 'plan-route',
       label: 'Map: Plan a route', labelKey: 'auto.afd03cf7e8c8',
       paletteSafe: false,
-      sideEffect: 'read',
+      sideEffect: 'write',
       input: {
         schema: { type: 'object', properties: { to: { type: 'string', minLength: 1 }, from: { type: 'string', minLength: 1 }, via: { type: 'array', items: { type: 'string', minLength: 1 }, maxItems: 100 }, mode: { enum: ['driving', 'walking', 'cycling'] } }, required: ['to'], additionalProperties: false },
         parse: (raw) => {
@@ -242,7 +252,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
 
         api.workspace.openMainTab()
         const plan = await store.planWaypoints([origin, ...stops, dest], mode)
-        return {
+        return { value: {
           from: origin.label,
           to: dest.label,
           via: stops.map((s) => s.label),
@@ -254,7 +264,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
             distanceM: s.distanceM,
             durationS: s.durationS
           }))
-        }
+        }, revert: null }
       },
       formatCli: (v) =>
         v.distanceM != null
@@ -267,7 +277,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       id: 'goto',
       label: 'Map: Go to coordinates', labelKey: 'auto.3b138ea53cba',
       paletteSafe: false,
-      sideEffect: 'read',
+      sideEffect: 'write',
       input: {
         schema: { type: 'object', properties: { lat: { type: 'number', minimum: -90, maximum: 90 }, lng: { type: 'number', minimum: -180, maximum: 180 }, zoom: { type: 'number', minimum: 0, maximum: 24 } }, required: ['lat', 'lng'], additionalProperties: false },
         parse: (raw) => {
@@ -281,7 +291,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       },
       run: ({ lat, lng, zoom }) => {
         live().showAddress([lng, lat], zoom ?? 16)
-        return { lat, lng, zoom: zoom ?? 16 }
+        return { value: { lat, lng, zoom: zoom ?? 16 }, revert: null }
       },
       formatCli: (v) => `Centred on ${v.lat.toFixed(4)}, ${v.lng.toFixed(4)}.`
     }),
@@ -290,14 +300,14 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       id: 'describe',
       label: 'Map: Describe a coordinate', labelKey: 'auto.2fa167b34f2a',
       paletteSafe: false,
-      sideEffect: 'read',
+      sideEffect: 'write',
       input: {
         schema: { type: 'object', properties: { lat: { type: 'number', minimum: -90, maximum: 90 }, lng: { type: 'number', minimum: -180, maximum: 180 } }, required: ['lat', 'lng'], additionalProperties: false },
         parse: (raw) => {
           const o = (raw ?? {}) as Record<string, unknown>
           const lat = asNum(o.lat)
           const lng = asNum(o.lng)
-          if (lat === undefined || lng === undefined || !isValidLngLat(lng, lat)) throw new Error('describe needs --lat and --lng')
+          if (lat === undefined || lng === undefined || !isValidLngLat(lng, lat)) throw refused('INVALID_INPUT', 'describe needs --lat and --lng')
           return { lat, lng }
         },
         fromCli: (args, flags) => ({ lat: asNum(flags.lat), lng: asNum(flags.lng) })
@@ -306,7 +316,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
         const store = live()
         const address = await store.lookupAddress(lng, lat)
         store.showAddress([lng, lat])
-        return { lat, lng, address }
+        return { value: { lat, lng, address }, revert: null }
       },
       formatCli: (v) =>
         v.address ? `${v.lat.toFixed(4)}, ${v.lng.toFixed(4)} — ${v.address}` : `No address found for ${v.lat.toFixed(4)}, ${v.lng.toFixed(4)}.`
@@ -400,15 +410,18 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       id: 'set-style',
       label: 'Map: Set base style', labelKey: 'auto.ae3c9d1f9ac7',
       paletteSafe: false,
-      sideEffect: 'read',
+      sideEffect: 'write',
       input: {
-        schema: { type: 'object', properties: { style: { type: 'string', minLength: 1 } }, required: ['style'], additionalProperties: false },
+        schema: { type: 'object', properties: { style: { enum: STYLE_IDS } }, required: ['style'], additionalProperties: false },
         parse: (raw) => ({ style: asStyle((raw as Record<string, unknown> | undefined)?.style) }),
-        fromCli: (args, flags) => ({ style: asStyle(asStr(flags.style) || args[0]) })
+        fromCli: (args, flags) => ({ style: (asStr(flags.style) || asStr(args[0])).trim().toLowerCase() as MapStyleId })
       },
-      run: ({ style }) => {
-        live().setStyle(style)
-        return { style }
+      run: async ({ style }) => {
+        const store = live()
+        if (!mapLayers(store.settings()).some((choice) => choice.id === style)) throw refused('STYLE_UNAVAILABLE', `The ${style} style needs the Mapbox base map provider.`)
+        store.setStyle(style)
+        await owner.flushViewAsync()
+        return { value: { style: store.getSnapshot().style }, revert: null }
       },
       formatCli: (v) => `Map style set to ${v.style}.`
     }),
@@ -416,10 +429,11 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
     register({
       id: 'clear-route',
       label: 'Map: Clear the route', labelKey: 'auto.4c236fbd5136',
-      sideEffect: 'read',
-      run: () => {
+      sideEffect: 'write',
+      run: async () => {
         live().clearPlanner()
-        return undefined
+        await owner.flushSessionAsync()
+        return { value: null, revert: null }
       }
     }),
 
@@ -439,7 +453,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       id: 'show-place',
       label: 'Map: Show a saved place', labelKey: 'auto.d0a3b11e2e7b',
       paletteSafe: false,
-      sideEffect: 'read',
+      sideEffect: 'write',
       input: {
         schema: { type: 'object', properties: { name: { type: 'string', minLength: 1 } }, required: ['name'], additionalProperties: false },
         parse: (raw) => {
@@ -449,10 +463,11 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
         },
         fromCli: (args, flags) => ({ name: (args.join(' ') || asStr(flags.name)).trim() })
       },
-      run: ({ name }) => {
+      run: async ({ name }) => {
         const place = findPlace(name)
         live().focusPlace(place)
-        return place
+        await owner.flushSessionAsync()
+        return { value: place, revert: null }
       },
       formatCli: (v) => `Showing “${v.name}”.`
     }),
@@ -624,5 +639,5 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       formatCli: (v) => `Deleted route “${v.name}”.`
     })
   ]
-  return () => offs.forEach((off) => off())
+  return () => { active = false; offs.forEach((off) => off()) }
 }
