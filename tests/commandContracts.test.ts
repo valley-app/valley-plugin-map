@@ -1,4 +1,4 @@
-import Ajv from 'ajv'
+import Ajv2020 from 'ajv/dist/2020'
 import { mapCommandResults } from '../src/commandResults'
 import { expect, it } from 'vitest'
 import { commandContracts } from './commandContracts'
@@ -12,7 +12,7 @@ it('publishes distinct typed input and output contracts for every background act
 
 it('publishes all 27 exact renderer result shapes without accepting unrelated payloads', () => {
   expect(Object.keys(mapCommandResults)).toHaveLength(27)
-  const compiler = new Ajv({ strict: true })
+  const compiler = new Ajv2020({ strict: true })
   for (const [id, schema] of Object.entries(mapCommandResults)) {
     const validate = compiler.compile(schema)
     expect(validate({ unexpected: true }), id).toBe(false)

@@ -763,6 +763,8 @@ export class MapStore {
     this.adoptSavedView(view[0] as Record<string, unknown> | undefined)
     // Opened right here so a camera event landing later in this tick is honoured.
     this.viewLoaded = true
+    // The loaded state is what the dataset holds: a mount, hide or dispose alone writes nothing.
+    this.savedSettings.set(VIEW_SETTING, JSON.stringify(this.viewRecord()))
     this.places = places.filter((p) => p && typeof p.id === 'string' && Number.isFinite(p.lng))
     this.routes = routes.filter((r) => r && typeof r.id === 'string' && Array.isArray(r.waypoints))
     this.pinSources = sources.map((r) => sanitizePinSource(r as Record<string, unknown>))
@@ -778,6 +780,7 @@ export class MapStore {
     // After `places`, so a `selectedPlaceId` naming a deleted place can be dropped.
     this.adoptSavedSession(session[0] as Record<string, unknown> | undefined)
     this.sessionLoaded = true
+    this.savedSettings.set(SESSION_SETTING, JSON.stringify(this.sessionRecord()))
     this.pushPlaces()
     this.refreshDerived()
     this.enqueueGeocoding()
@@ -985,22 +988,24 @@ export class MapStore {
       this.sessionTimer = null
     }
     if (!this.sessionLoaded || this.disposed) return
-    this.sessionWrite = this.persistSetting(SESSION_SETTING,
-      {
-        id: 'session',
-        panelTab: this.panelTab,
-        selectedPlaceId: this.selectedPlaceId,
-        searchQuery: this.searchQuery,
-        searchResults: this.searchResults.slice(0, 12),
-        selectedResult: this.selectedResult,
-        directionsOpen: this.directionsOpen,
-        // `plannerWaypoints` is derived (`filledStops`) — persisting both invites drift.
-        stops: this.plannerStops,
-        plannerMode: this.plannerMode,
-        savedRouteId: this.savedRouteId
-      } as unknown as DataRecord
-    )
+    this.sessionWrite = this.persistSetting(SESSION_SETTING, this.sessionRecord())
     void this.sessionWrite.catch(() => {})
+  }
+
+  private sessionRecord(): DataRecord {
+    return {
+      id: 'session',
+      panelTab: this.panelTab,
+      selectedPlaceId: this.selectedPlaceId,
+      searchQuery: this.searchQuery,
+      searchResults: this.searchResults.slice(0, 12),
+      selectedResult: this.selectedResult,
+      directionsOpen: this.directionsOpen,
+      // `plannerWaypoints` is derived (`filledStops`) — persisting both invites drift.
+      stops: this.plannerStops,
+      plannerMode: this.plannerMode,
+      savedRouteId: this.savedRouteId
+    } as unknown as DataRecord
   }
 
   async flushSessionAsync(): Promise<void> {
@@ -1855,6 +1860,7 @@ export class MapStore {
     this.engine?.setWaypoints(waypoints)
     if (this.planTimer !== null) window.clearTimeout(this.planTimer)
     this.emit()
+    this.markSession()
     await this.computePlan()
     return this.plan
   }

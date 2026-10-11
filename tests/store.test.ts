@@ -822,6 +822,25 @@ describe('MapStore — reload persistence', () => {
     expect(write).toHaveBeenCalledTimes(2)
   })
 
+  it('writes no default view or session when a loaded store is only hidden, unloaded or disposed', async () => {
+    const mock = createMapApi()
+    store = createStore(mock.api)
+    await store.ready
+    const write = vi.spyOn(mock.api.settings, 'set')
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    try { document.dispatchEvent(new Event('visibilitychange')) } finally { Reflect.deleteProperty(document, 'visibilityState') }
+    window.dispatchEvent(new Event('pagehide'))
+    store.flushView(); store.flushSession()
+    expect(write).not.toHaveBeenCalled()
+    store.setPanelTab('pins')
+    store.flushSession()
+    expect(write.mock.calls.map(([key]) => key)).toEqual(['mapSessionState'])
+    store.dispose()
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(mock.api.settings.get()).not.toHaveProperty('mapViewState')
+    expect(mock.api.settings.get().mapSessionState).toMatchObject({ panelTab: 'pins' })
+  })
+
   it('waits for pending view and session saves before unloading without repeating them on disposal', async () => {
     const mock = createMapApi()
     let prepare!: () => void | Promise<void>
@@ -1050,6 +1069,15 @@ describe('MapStore — reload persistence', () => {
     expect(snap.selectedResult?.name).toBe('Alpine Meadow')
     expect(snap.plannerStops.map((s) => s?.label)).toEqual(['Canopy Station', 'Alpine Meadow'])
     expect(snap.plannerWaypoints).toHaveLength(2)
+  })
+
+  it('persists the stops and mode a command plans, so a reload reopens on the planned route', async () => {
+    const s = seeded(undefined, { id: 'session', panelTab: 'search', stops: [], plannerMode: 'driving', savedRouteId: null })
+    store = s.store
+    await store.load()
+    const stops = [{ lng: 8.54, lat: 12.37, label: 'Fern Gate' }, { lng: 8.6, lat: 12.4, label: 'Moss Bridge' }]
+    await store.planWaypoints(stops, 'walking')
+    await vi.waitFor(() => expect(s.settings().mapSessionState).toMatchObject({ id: 'session', panelTab: 'search', stops, plannerMode: 'walking', savedRouteId: null }))
   })
 
   it('gates session writes until the saved session is read, then writes on demand', async () => {

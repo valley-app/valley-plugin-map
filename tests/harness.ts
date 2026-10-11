@@ -1,4 +1,4 @@
-import Ajv from 'ajv'
+import Ajv2020 from 'ajv/dist/2020'
 import { assertCommandOutput } from './commandContracts'
 import * as React from 'react'
 import { createMockValleyApi as createBaseMock, type MockValleyApi } from '@valley/plugin-testkit'
@@ -40,7 +40,7 @@ export function createMockValleyApi(options: Parameters<typeof createBaseMock>[0
   const custom = options.overrides?.backend && overrides.get(options.overrides.backend)
   const mock = createBaseMock(options)
   const registerCommand = mock.api.commands.register.bind(mock.api.commands)
-  const compiler = new Ajv({ strict: true })
+  const compiler = new Ajv2020({ strict: true })
   mock.api.commands.register = command => {
     const validate = command.outputSchema ? compiler.compile(command.outputSchema) : null
     return registerCommand({ ...command, run: async (input, context) => {
