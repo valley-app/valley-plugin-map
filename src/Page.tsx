@@ -27,6 +27,7 @@ import {
   X
 } from './icons'
 import { uiText } from './localization'
+import { claimNetworkNotice, networkDisabled, readableError } from './requests'
 import type { ReactElement } from 'react'
 
 /** The map's layer picker — every basemap, as circles under the layers button. */
@@ -74,6 +75,10 @@ export const Page: FC<MainWorkspaceViewProps> = ({ instanceId }) => {
       noticeTimer.current = null
     }, 7000)
   }, [])
+  const reportError = React.useCallback((error: unknown): void => {
+    if (!networkDisabled(error)) { flashNotice(readableError(error)); return }
+    if (claimNetworkNotice()) flashNotice(uiText('map.networkDisabled'))
+  }, [flashNotice])
 
   // A location attempt that fails has to say so on its own. The failure arrives
   // asynchronously — often as a timeout many seconds after the click — so
@@ -133,7 +138,7 @@ export const Page: FC<MainWorkspaceViewProps> = ({ instanceId }) => {
       // The page draws its own round zoom/layer controls (below); the scale bar stays.
       showZoom: false,
       onReady: () => store.onMapReady(),
-      onError: error => { if (!disposed) flashNotice(error instanceof Error ? error.message : String(error)) },
+      onError: error => { if (!disposed) reportError(error) },
       onClick: (lngLat: LngLat) => {
         // Read the mode off the store, not a ref: the sidebar chip can flip it
         // while this engine stays mounted.
@@ -175,11 +180,11 @@ export const Page: FC<MainWorkspaceViewProps> = ({ instanceId }) => {
       engine.destroy()
       engineRef.current = null
     }
-    }).catch((error) => { if (!disposed) flashNotice(error instanceof Error ? error.message : String(error)) })
+    }).catch((error) => { if (!disposed) reportError(error) })
     const close = (): void => { if (!disposed) { disposed = true; lookups.abort(); cleanup?.() } }
     const offOwner = owner.onDispose(close)
     return () => { offOwner(); close() }
-  }, [owner, ready, store, flashNotice])
+  }, [owner, ready, store, reportError])
 
   if (!store) return null
 

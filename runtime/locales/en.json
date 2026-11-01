@@ -454,5 +454,7 @@
   "sources.icons.refresh": "Refresh icons",
   "sources.icons.readError": "Some icons could not be loaded",
   "sources.noResults": "0 sources found",
-  "bookmark.view": "Map view"
+  "bookmark.view": "Map view",
+  "backend.unreadable": "The map service returned a response that is not valid map data.",
+  "map.networkDisabled": "Map is offline: network access is disabled. Tiles, search and routes are unavailable."
 }

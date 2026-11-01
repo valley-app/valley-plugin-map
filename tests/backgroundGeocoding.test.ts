@@ -36,11 +36,39 @@ function setup(rows: DatasetRecord[] = []) {
   const publish = vi.fn(async (_address: string, _point: { lng: number; lat: number }, _signal: AbortSignal) => true)
   const sleep = vi.fn(async (milliseconds: number, _signal: AbortSignal) => { time += milliseconds })
   const onError = vi.fn()
-  const owner = createBackgroundGeocoding({ answers: dataset, lookup, publish, sleep, onError, now: () => time })
-  return { owner, lookup, publish, sleep, onError, query, batch, remove, dataset, advance: (milliseconds: number) => { time += milliseconds } }
+  const onOffline = vi.fn()
+  const owner = createBackgroundGeocoding({ answers: dataset, lookup, publish, sleep, onError, onOffline, now: () => time })
+  return { owner, lookup, publish, sleep, onError, onOffline, query, batch, remove, dataset, advance: (milliseconds: number) => { time += milliseconds } }
 }
 
 describe('Map background geocoding owner', () => {
+  it('stops geocoding quietly for the session once network access is refused', async () => {
+    const mock = setup([answer('Known')])
+    mock.lookup.mockRejectedValue(new Error('Error: Plugin network access is disabled in VALLEY_TEST_MODE'))
+    mock.owner.update(entries('Known', 'Meadow', 'Ridge', 'Fen'), [source], settings)
+    await mock.owner.settled()
+    expect(mock.lookup).toHaveBeenCalledTimes(1)
+    expect(mock.publish).toHaveBeenCalledTimes(1)
+    expect(mock.onError).not.toHaveBeenCalled()
+    expect(mock.onOffline).toHaveBeenCalledTimes(1)
+    mock.owner.update(entries('Known', 'Meadow', 'Ridge', 'Fen', 'Moor'), [source], settings)
+    await mock.owner.settled()
+    expect(mock.lookup).toHaveBeenCalledTimes(1)
+    expect(mock.publish).toHaveBeenCalledTimes(2)
+    expect(mock.onOffline).toHaveBeenCalledTimes(1)
+    await mock.owner.dispose()
+  })
+
+  it('reports a refused or blocked provider once per run instead of once per place', async () => {
+    const mock = setup()
+    mock.lookup.mockRejectedValue(new GeocodeError(403))
+    mock.owner.update(entries('Meadow', 'Ridge', 'Fen'), [source], settings)
+    await mock.owner.settled()
+    expect(mock.lookup).toHaveBeenCalledTimes(1)
+    expect(mock.onError).toHaveBeenCalledTimes(1)
+    await mock.owner.dispose()
+  })
+
   it('reuses only fresh answers from the exact provider/account and expires negative answers sooner', async () => {
     const first = accountSettings('first')
     const second = accountSettings('second')

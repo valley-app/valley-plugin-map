@@ -38,7 +38,7 @@ import {
   type GeoCache
 } from './pinSources'
 import { GeocodeError, searchPlaces, searchPlacesWithProvider, reverseGeocode } from './geocode'
-import { createMapRequests } from './requests'
+import { createMapRequests, readableError } from './requests'
 import { createBackgroundGeocoding } from './backgroundGeocoding'
 import { uiText } from './localization'
 import { setFormatUnits } from './format'
@@ -500,7 +500,8 @@ export class MapStore {
         this.emit()
         return true
       },
-      onError: (error, address) => console.error('[mapbox] geocode failed', address, error)
+      onError: (error, address) => console.error('[mapbox] geocode failed', address, readableError(error)),
+      onOffline: () => console.info('[map] network access is disabled; address pins wait for the network')
     })
     const initialSettings = this.settings()
     this.requestProviders = [effectiveSearchProvider(initialSettings), effectiveRoutingProvider(initialSettings), effectiveElevationProvider(initialSettings)]

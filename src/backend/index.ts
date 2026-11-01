@@ -253,7 +253,11 @@ export function register(api: PluginBackendApi): () => void {
     } else if (payload.service === 'elevation') request = { url: 'https://api.open-elevation.com/api/v1/lookup', method: 'POST', headers: { 'Content-Type': 'application/json' }, bodyBase64: encode({ locations: coordinates(payload.coordinates).map(([longitude, latitude]) => ({ longitude, latitude })) }), timeoutMs: 15000 }
     else throw new Error(uiText('backend.service'))
     const response = await scope.fetch({ headers: { Accept: 'application/json' }, ...request })
-    const json = decode(response.bodyBase64)
+    let json: unknown
+    try { json = decode(response.bodyBase64) } catch {
+      if (response.status < 200 || response.status >= 300) return { status: response.status, json: null }
+      throw new Error(uiText('backend.unreadable'))
+    }
     if (payload.service === 'search') {
       if (response.status >= 200 && response.status < 300 && !Array.isArray(json)) throw new Error(uiText('backend.request'))
       const places = (Array.isArray(json) ? json.slice(0, GEOCODE_SEARCH_LIMIT) : []).filter(value => value && typeof value === 'object').map(value => ({

@@ -105,6 +105,18 @@ describe('Map package backend', () => {
     mock.dispose()
   })
 
+  it('reports a non-JSON public response by its status or one readable message instead of a parse error', async () => {
+    const mock = setup()
+    const text = (body: string, status: number): PluginFetchResponse => ({ status, headers: {}, bodyBase64: Buffer.from(body).toString('base64') })
+    mock.fetch.mockResolvedValueOnce(text('Access denied. See the usage policy.', 403))
+    expect(await mock.call('publicJson', { service: 'search', query: 'Grove' })).toEqual({ status: 403, json: null })
+    mock.fetch.mockResolvedValueOnce(text('Access denied. See the usage policy.', 200))
+    const failure = await mock.call('publicJson', { service: 'search', query: 'Grove' }).catch((error: Error) => error)
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).message).toBe('The map service returned a response that is not valid map data.')
+    mock.dispose()
+  })
+
   it('cancels only its own transfer while another provider account completes normally', async () => {
     const mock = setup([account('first'), account('second')])
     let finish!: (value: PluginFetchResponse) => void

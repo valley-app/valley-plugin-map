@@ -454,5 +454,7 @@
   "sources.icons.refresh": "Symbole aktualisieren",
   "sources.icons.readError": "Einige Symbole konnten nicht geladen werden",
   "sources.noResults": "0 Quellen gefunden",
-  "bookmark.view": "Kartenansicht"
+  "bookmark.view": "Kartenansicht",
+  "backend.unreadable": "Der Kartendienst hat eine Antwort ohne gültige Kartendaten geliefert.",
+  "map.networkDisabled": "Die Karte ist offline: Der Netzwerkzugriff ist deaktiviert. Kacheln, Suche und Routen sind nicht verfügbar."
 }

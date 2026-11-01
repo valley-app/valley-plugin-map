@@ -6,6 +6,27 @@ export interface MapRequest {
   services: ReturnType<typeof mapServices>
 }
 
+const ERROR_PREFIX = /^(?:\s*[A-Za-z]*Error:\s*)+/
+
+/** An error's message without the "Error: " prefixes each process boundary adds. */
+export function readableError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.replace(ERROR_PREFIX, '').trim() || message
+}
+
+/** The host refuses plugin network access (for example in test mode); no retry can succeed. */
+export function networkDisabled(error: unknown): boolean {
+  return /network access is disabled/i.test(error instanceof Error ? error.message : String(error))
+}
+
+let networkNoticeShown = false
+/** True only for the first network refusal this session, so the notice appears once. */
+export function claimNetworkNotice(): boolean {
+  if (networkNoticeShown) return false
+  networkNoticeShown = true
+  return true
+}
+
 export class MapRequestCancelled extends Error {
   constructor() { super('Map request cancelled'); this.name = 'AbortError' }
 }

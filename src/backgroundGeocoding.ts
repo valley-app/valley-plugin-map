@@ -6,7 +6,7 @@ import { GeocodeError } from './geocode'
 import { isValidLngLat } from './geo'
 import { matchingNotes, normalizeAddress, pendingAddress } from './pinSources'
 import { PUBLIC_SEARCH_ID, searchProviderIdentity } from './geocodeProviders'
-import { MapRequestCancelled } from './requests'
+import { MapRequestCancelled, networkDisabled } from './requests'
 
 export const GEOCODE_ANSWER_LIMIT = 512
 export const GEOCODE_ANSWER_BYTES = 1024 * 1024
@@ -25,6 +25,7 @@ interface GeocodingPorts {
   lookup(address: string, settings: MapSettings, signal: AbortSignal): Promise<GeocodedPlaces>
   publish(address: string, coordinate: { lng: number; lat: number }, signal: AbortSignal): Promise<boolean>
   onError(error: unknown, address: string): void
+  onOffline?(): void
   now?: () => number
   sleep?: (milliseconds: number, signal: AbortSignal) => Promise<void>
 }
@@ -75,6 +76,7 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
   let stopping: Promise<void> | null = null
   let queued = 0
   let nextPublicRequest = 0
+  let offline = false
   const sizes = new WeakMap<Answer, number>()
 
   const check = (signal: AbortSignal): void => { if (disposed || signal.aborted) throw new MapRequestCancelled() }
@@ -183,7 +185,7 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
           await ports.publish(item.address, { lng: cached.lng!, lat: cached.lat! }, signal)
           check(signal)
         }
-      } else {
+      } else if (!offline) {
         try {
           if (nextPublicRequest > now()) await pause(nextPublicRequest - now(), signal)
           check(signal)
@@ -202,9 +204,13 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
         } catch (error) {
           check(signal)
           if (error instanceof MapRequestCancelled) return
-          if (job.provider === PUBLIC_SEARCH_ID || error instanceof GeocodeError) nextPublicRequest = now() + PUBLIC_INTERVAL
-          ports.onError(error, item.address)
-          if (error instanceof GeocodeError && error.status === 429) return
+          if (networkDisabled(error)) {
+            if (!offline) { offline = true; ports.onOffline?.() }
+          } else {
+            if (job.provider === PUBLIC_SEARCH_ID || error instanceof GeocodeError) nextPublicRequest = now() + PUBLIC_INTERVAL
+            ports.onError(error, item.address)
+            if (error instanceof GeocodeError && (error.status === 429 || error.status === 403)) return
+          }
         }
       }
       if (!queue.length) await fill()
