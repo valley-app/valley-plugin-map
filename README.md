@@ -18,7 +18,7 @@ Rendering uses the configured basemap. Authored simplestyle colours, widths, and
 
 The round control on the map switches between Light and Dark only. System, which follows Valley's appearance, is chosen in the right-sidebar Map mode field; both controls show the same mode. On the map page, the footer's Coordinates and Address describe the same point as the header, the map centre.
 
-Valley ships this core plugin as a verified release artifact in its application resources. Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. The core package and its locale files are never installed into `.valley`; ordinary vault documents and saved plugin data retain their existing locations.
+This is an external plugin and is not bundled with Valley. An installed copy lives in the vault's `.valley/plugins/packages/github/map/` (installed from GitHub) or `.valley/plugins/packages/local/map/` (installed from a local package). Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. Ordinary vault documents and saved plugin data (`.valley/plugins/data/map/`) keep their existing locations.
 
 ## Map pins
 
