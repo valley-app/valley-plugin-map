@@ -69,6 +69,16 @@ describe('Map background geocoding owner', () => {
     await mock.owner.dispose()
   })
 
+  it('stops a run after an unauthorized answer such as a rejected token', async () => {
+    const mock = setup()
+    mock.lookup.mockRejectedValue(new GeocodeError(401))
+    mock.owner.update(entries('Meadow', 'Ridge', 'Fen'), [source], settings)
+    await mock.owner.settled()
+    expect(mock.lookup).toHaveBeenCalledTimes(1)
+    expect(mock.onError).toHaveBeenCalledTimes(1)
+    await mock.owner.dispose()
+  })
+
   it('reuses only fresh answers from the exact provider/account and expires negative answers sooner', async () => {
     const first = accountSettings('first')
     const second = accountSettings('second')

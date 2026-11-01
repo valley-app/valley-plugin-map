@@ -209,7 +209,7 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
           } else {
             if (job.provider === PUBLIC_SEARCH_ID || error instanceof GeocodeError) nextPublicRequest = now() + PUBLIC_INTERVAL
             ports.onError(error, item.address)
-            if (error instanceof GeocodeError && (error.status === 429 || error.status === 403)) return
+            if (error instanceof GeocodeError && (error.status === 429 || error.status === 403 || error.status === 401)) return
           }
         }
       }
