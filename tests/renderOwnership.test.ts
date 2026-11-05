@@ -3,6 +3,7 @@ import { Blob as NodeBlob } from 'node:buffer'
 import { gzipSync } from 'node:zlib'
 import { createMockValleyApi } from '@valley/plugin-testkit'
 import { act, renderHook } from '@testing-library/react'
+import { Protocol } from 'pmtiles'
 import { MapEngine, type MapEngineOptions } from '../src/mapEngine'
 import { createMapEngine } from '../src/island'
 import { initRuntime, type MapRenderOwner } from '../src/runtime'
@@ -279,6 +280,18 @@ it('keeps protocol requests bound to their API and joins accepted reads on repla
   expect(replacement.api.backend.call).not.toHaveBeenCalled()
   release(); await draining; await reading
   expect(fixture.mock.api.backend.call).toHaveBeenCalledOnce()
+  engine.destroy()
+})
+
+it('keeps offline PMTiles tile requests on the map\'s own registered protocol', async () => {
+  const fixture = setup()
+  const engine = new MapEngine({ ...fixture.options, settings: resolveSettings({ offlineBasemapPath: 'Maps/field.pmtiles' }) }, fixture.owner)
+  fixture.intersect(true)
+  const name = [...state.protocols.keys()].find(key => key.endsWith('-pmtiles'))!
+  // The pmtiles library answers a TileJSON request with tile templates built from the URL it was given.
+  vi.spyOn((engine as unknown as { pmtiles: Protocol }).pmtiles, 'tile').mockImplementation(async params => ({ data: { tilejson: '3.0.0', tiles: [`${params.url}/{z}/{x}/{y}`] } }))
+  const answer = await state.protocols.get(name)!({ url: `${name}://plugin-map-offline://archive/Maps%2Ffield.pmtiles`, type: 'json' }, new AbortController()) as { data: { tiles: string[] } }
+  expect(answer.data.tiles).toEqual([`${name}://plugin-map-offline://archive/Maps%2Ffield.pmtiles/{z}/{x}/{y}`])
   engine.destroy()
 })
 
