@@ -230,7 +230,14 @@ export class MapEngine {
       if (type === 'string') return { data: new TextDecoder().decode(bytes) }
       return { data: bytes.buffer }
     }))
-    add(`${this.protocolId}-pmtiles`, (params, controller) => run(() => this.pmtiles.tile({ ...params, url: params.url.replace(`${this.protocolId}-pmtiles://`, 'pmtiles://') }, controller)))
+    add(`${this.protocolId}-pmtiles`, (params, controller) => run(async () => {
+      const result = await this.pmtiles.tile({ ...params, url: params.url.replace(`${this.protocolId}-pmtiles://`, 'pmtiles://') }, controller)
+      // The TileJSON's tile templates come back on the plain pmtiles:// scheme, which nothing registers here: an
+      // unregistered scheme is fetched over the network and the plugin frame's CSP blocks it.
+      const data = result.data as Record<string, unknown> | undefined
+      if (!data || !Array.isArray(data.tiles)) return result
+      return { ...result, data: { ...data, tiles: data.tiles.map((tile: unknown) => typeof tile === 'string' ? tile.replace(/^pmtiles:\/\//, `${this.protocolId}-pmtiles://`) : tile) } }
+    }))
   }
 
   private style(): StyleSpecification {
