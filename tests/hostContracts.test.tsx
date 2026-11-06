@@ -20,7 +20,7 @@ afterEach(() => { document.head.querySelectorAll('style[id]').forEach((style) =>
 describe('package host contracts', () => {
   it('registers one read-only map viewer for GPX, KML, and GeoJSON', async () => {
     const mock = createMockValleyApi({ manifest: declared })
-    mock.api.backend.call = vi.fn(async () => ({ ok: true, data: { connections: [] } })) as typeof mock.api.backend.call
+    mock.api.backend.call = vi.fn(async () => ({ ok: true, data: { connections: [] } })) as unknown as typeof mock.api.backend.call
     const registerView = vi.spyOn(mock.api, 'registerView')
     const dispose = plugin.register(mock.api)
     try {
@@ -33,7 +33,7 @@ describe('package host contracts', () => {
   })
   it('registers attributed command schemas and declared contextual surfaces', async () => {
     const mock = createMockValleyApi({ manifest: declared })
-    mock.api.backend.call = vi.fn(async () => ({ ok: true, data: { connections: [] } })) as typeof mock.api.backend.call
+    mock.api.backend.call = vi.fn(async () => ({ ok: true, data: { connections: [] } })) as unknown as typeof mock.api.backend.call
     const dispose = plugin.register(mock.api)
     try {
       await Promise.resolve()

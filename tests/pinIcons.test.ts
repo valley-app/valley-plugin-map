@@ -10,7 +10,7 @@ describe('vault map icons', () => {
     const mock = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
     initRuntime(mock.api)
     let svg = fern
-    const read = vi.spyOn(mock.api.backend, 'call').mockImplementation(async () => ({ icons: { pin: fern, fern: svg }, failed: [] }))
+    const read = vi.spyOn(mock.api.backend, 'call').mockImplementation(async () => ({ icons: { pin: fern, fern: svg }, failed: [] }) as never)
     await refreshMapIcons(mock.api)
     expect(mapIconSvg('fern', mock.api)).toContain('viewBox="0 0 48 48"')
     svg = fern.replace('M4 4L40 40', 'M8 8L32 32')

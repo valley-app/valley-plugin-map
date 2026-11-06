@@ -88,14 +88,14 @@ afterEach(async () => {
 
 it('keeps a mounted view bound to the store that owns its rendering lifetime', async () => {
   const first = createMockValleyApi({ manifest: { id: 'map' } })
-  vi.spyOn(first.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } })
+  vi.spyOn(first.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } } as never)
   const oldStore = createStore(first.api)
   cleanups.push(() => disposeStore(oldStore))
   await oldStore.ready
   const oldView = renderHook(useMap)
   cleanups.push(oldView.unmount)
   const replacement = createMockValleyApi({ manifest: { id: 'map' } })
-  vi.spyOn(replacement.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } })
+  vi.spyOn(replacement.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } } as never)
   replacement.api.runtime = first.api.runtime
   let nextStore!: ReturnType<typeof createStore>
   await act(async () => { nextStore = createStore(replacement.api); await nextStore.ready })
@@ -252,7 +252,7 @@ it.each([false, true])('decodes map resources before handing them to MapLibre (g
   const handler = state.protocols.get(new URL(url).protocol.slice(0, -1))!
   for (const type of ['arrayBuffer', 'json', 'string']) {
     const raw = Buffer.from(type === 'arrayBuffer' ? [0x1a, 0x03, 0x0a, 0x01, 0x61] : '{"version":8}')
-    backend.mockResolvedValue({ bodyBase64: (compressed ? gzipSync(raw) : raw).toString('base64') })
+    backend.mockResolvedValue({ bodyBase64: (compressed ? gzipSync(raw) : raw).toString('base64') } as never)
     const result = await handler({ url, type }, new AbortController())
     if (type === 'arrayBuffer') expect(new Uint8Array(result.data as ArrayBuffer)).toEqual(new Uint8Array(raw))
     else expect(result.data).toEqual(type === 'json' ? { version: 8 } : raw.toString())
@@ -266,7 +266,7 @@ it('keeps protocol requests bound to their API and joins accepted reads on repla
   fixture.intersect(true)
   let release!: () => void
   const held = new Promise<void>(resolve => { release = resolve }); releases.push(release)
-  vi.spyOn(fixture.mock.api.backend, 'call').mockImplementation((async () => { await held; return { bodyBase64: 'e30=' } }) as typeof fixture.mock.api.backend.call)
+  vi.spyOn(fixture.mock.api.backend, 'call').mockImplementation((async () => { await held; return { bodyBase64: 'e30=' } }) as unknown as typeof fixture.mock.api.backend.call)
   const url = state.maps[0].options.transformRequest('https://tiles.example/one.json').url
   const handler = state.protocols.get(new URL(url).protocol.slice(0, -1))!
   const reading = expect(handler({ url, type: 'json' }, new AbortController())).rejects.toThrow('no longer active')

@@ -2,7 +2,7 @@
 
 Interactive map for favorite places and route planning: a left-sidebar list of saved places and routes, a full-workspace map, and a right-sidebar route planner with travel modes, distance/ETA and an elevation profile. Uses free providers by default; optional Mapbox, OpenRouteService, and community Map connections are managed under Accounts.
 
-This repository owns the plugin’s interface, behavior, dependencies, schemas, tests, translations, and compiled releases. It uses Valley manifest API 5 and the injected SDK 6.
+This repository owns the plugin’s interface, behavior, dependencies, schemas, tests, translations, and compiled releases. It uses Valley manifest API 5 and the injected SDK 7.
 
 ## Map files
 
@@ -11,6 +11,8 @@ Open `.gpx`, `.kml`, or `.geojson` files in independent, read-only map tabs. Eac
 - GPX: waypoints, routes, and tracks, including disconnected track segments.
 - KML: points, paths, polygons with holes, MultiGeometry, and tracks. Linked content, image overlays, and 3D models are omitted with a notice.
 - GeoJSON: geometries, features, and feature collections, including multipart geometries and geometry collections. Coordinates must use WGS84 longitude/latitude.
+
+GPX and KML files are read by a WebAssembly module written in Rust (`src/wasm/`), which turns the file into the map's features in one pass instead of building and walking a document tree: about 4× faster for a 2 MB file and 9× for a 20 MB track. It returns exactly what the JavaScript parser in `src/mapFile.ts` returns, which stays the reference and takes over for files above 20 million characters (the module's 64 MiB memory), for hosts without WebAssembly, and for the rare constructs the module hands back. GeoJSON uses the browser's native JSON parser.
 
 Rendering uses the configured basemap. Authored simplestyle colours, widths, and opacities (including converted KML styles) are kept; unstyled features use Map's route colour. Feature details show the geometry, coordinates, elevation, length, climb, and start/end times, followed by the file's own properties; styling and converter bookkeeping are hidden and descriptions are displayed as plain text. Files are never modified. Existing route import/export commands are unchanged.
 
@@ -33,6 +35,7 @@ Pin artwork lives in `.valley/assets/icon/map-icon/`. The eight bundled SVGs are
 - `manifest.json`: readable English identity, version, and paired `author` / `authorUrl` arrays.
 - `config.json`: runtime entry points, permissions, contributions, and storage declarations.
 - `src/`: plugin interface and background engine.
+- `src/wasm/`: the GPX/KML reader in Rust (built to `runtime/assets/mapfile.wasm`, declared in `config.json` under `runtime.wasm`).
 - `locales/`: English, German, Spanish, French, and Simplified Chinese catalogs.
 - `tests/`: package-owned checks using the portable SDK testkit.
 - `runtime/`: compiled installation artifact, including the package’s locale catalogs.
@@ -42,7 +45,7 @@ The package’s `manifest.name` and `manifest.description` catalog entries trans
 
 ## Development and releases
 
-Use Node 24.19.0 and npm 11.17.0. From this repository, run:
+Use Node 24.19.0 and npm 11.17.0, and Rust from `rustup` (the toolchain pinned in `rust-toolchain.toml`) with binaryen's `wasm-opt` at the version plugin-tools names. From this repository, run:
 
 ```sh
 npm ci
@@ -59,7 +62,7 @@ npm run test:render
 
 To use an installed Chrome instead, run `MAP_TEST_BROWSER_CHANNEL=chrome npm run test:render`. The browser uses a temporary isolated profile; all external requests are blocked. The check verifies points, lines, polygon holes, track gaps, feature details, independent tab controls, file updates, and cleanup in light and dark themes, and saves screenshots to a temporary directory.
 
-The check validates types and package boundaries, runs the package tests, and rebuilds `runtime/`. It requires no Valley source checkout. Keep the rebuilt runtime, locale files, dependency lock, and vendored tools with each release. Increment the package and manifest versions together.
+The check validates types and package boundaries, builds the file reader twice (the bytes must match each other and the `sha256` in `config.json`), runs the package tests, including `tests/mapFileReader.test.ts`, which requires the module to answer every fixture exactly like the JavaScript parser, and rebuilds `runtime/`. After a reader change, commit the digest the build reports. It requires no Valley source checkout. Keep the rebuilt runtime, locale files, dependency lock, and vendored tools with each release. Increment the package and manifest versions together.
 
 Valley release maintainers explicitly import the compiled artifact into the application’s `plugins.lock.json`; building Valley does not build or read this repository. All privileged work uses declared SDK capabilities, authenticated IPC, and explicit grants. Disabling or unloading the plugin releases its subscriptions and resources.
 

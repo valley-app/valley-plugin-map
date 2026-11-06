@@ -7,7 +7,8 @@ import { useMap } from './hooks'
 import { createMapEngine } from './island'
 import type { MapEngine } from './mapEngine'
 import { hostAppearance, observeHostAppearance } from './mapStyle'
-import { MapFileError, parseMapFile, summarizeMapFeature, type MapFileData, type MapFileFeature } from './mapFile'
+import { MapFileError, summarizeMapFeature, type MapFileData, type MapFileFeature } from './mapFile'
+import { readMapFile } from './mapFileReader'
 import { mapPresentationSettings, parseMapPresentation, resolveSettings } from './settings'
 import { uiText } from './localization'
 import { formatDistance, formatDuration, formatLatLng, formatLength } from './format'
@@ -145,7 +146,8 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
         const file = await owner.run(() => owner.api.vault.readFileBaseline(relPath))
         if (disposed || request !== generation || !owner.isActive()) return
         if (!file?.baseline) { setState({ path: relPath, status: 'error', error: 'file.unreadable' }); return }
-        const parsed = parseMapFile(relPath, file.content)
+        const parsed = await readMapFile(owner.api, relPath, file.content)
+        if (disposed || request !== generation || !owner.isActive()) return
         setState({ path: relPath, status: 'loaded', data: parsed, sourceRevision: JSON.stringify(file.baseline) })
       } catch (error) {
         if (!disposed && request === generation && owner.isActive()) setState({ path: relPath, status: 'error', error: error instanceof MapFileError ? error.key : 'file.unreadable' })

@@ -1,0 +1,26 @@
+# The plugin's WebAssembly module: `valley-plugin build` runs `cargo build --release --locked --target
+# wasm32-unknown-unknown` here, optimizes it with the pinned wasm-opt and writes runtime/assets/mapfile.wasm.
+[package]
+name = "mapfile"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+valley-plugin-abi = { path = "abi" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false
+incremental = false
+
+# A standalone crate: no parent workspace is looked up.
+[workspace]

@@ -165,7 +165,7 @@ it('destroys an engine that finishes loading after its tab closes', async () => 
 
 it('propagates shared units without rebuilding or refitting the file map', async () => {
   const mock = setup({ 'ferns.geojson': point() })
-  vi.spyOn(mock.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } })
+  vi.spyOn(mock.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } } as never)
   const store = createStore(mock.api)
   await store.ready
   const view = render(<FileView relPath="ferns.geojson" />)
@@ -198,7 +198,7 @@ it('shows a localized error when the map runtime cannot load', async () => {
 
 it('leaves the main map camera, routes, and places unchanged', async () => {
   const mock = setup({ 'a.geojson': point() })
-  vi.spyOn(mock.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } })
+  vi.spyOn(mock.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } } as never)
   const store = createStore(mock.api)
   await store.ready
   const attach = vi.spyOn(store, 'attachMap')
@@ -216,7 +216,7 @@ it('leaves the main map camera, routes, and places unchanged', async () => {
 
 it('switches the map itself only between Light and Dark, writing the mode the sidebar shows', async () => {
   const mock = setup({})
-  vi.spyOn(mock.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } })
+  vi.spyOn(mock.api.backend, 'call').mockResolvedValue({ ok: true, data: { connections: [] } } as never)
   vi.stubGlobal('matchMedia', vi.fn(() => Object.assign(new EventTarget(), { matches: false })))
   const store = createStore(mock.api)
   try {
