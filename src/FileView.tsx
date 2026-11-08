@@ -143,7 +143,7 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
       setState({ path: relPath, status: 'loading' })
       setSelected(null)
       try {
-        const file = await owner.run(() => owner.api.vault.readFileBaseline(relPath))
+        const file = await owner.run(() => owner.api.realm.readFileBaseline(relPath))
         if (disposed || request !== generation || !owner.isActive()) return
         if (!file?.baseline) { setState({ path: relPath, status: 'error', error: 'file.unreadable' }); return }
         const parsed = await readMapFile(owner.api, relPath, file.content)
@@ -153,7 +153,7 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
         if (!disposed && request === generation && owner.isActive()) setState({ path: relPath, status: 'error', error: error instanceof MapFileError ? error.key : 'file.unreadable' })
       }
     }
-    const offChanged = owner.api.vault.onChanged(info => {
+    const offChanged = owner.api.realm.onChanged(info => {
       if (info.full || info.changes.some(change => change.relPath === relPath || relPath.startsWith(`${change.relPath}/`))) void load()
     })
     const close = (): void => { disposed = true; generation++; offChanged() }
@@ -225,17 +225,17 @@ export const FileView: FC<ComponentProps<PluginFileView> & { embedded?: boolean;
 }
 
 export const FileInfo: FC<{ relPath: string }> = ({ relPath }) => {
-  const [info, setInfo] = React.useState<Awaited<ReturnType<typeof api.vault.fileInfo>>>(null)
+  const [info, setInfo] = React.useState<Awaited<ReturnType<typeof api.realm.fileInfo>>>(null)
   React.useEffect(() => {
     let disposed = false, generation = 0
     const read = async () => {
       const request = ++generation
-      try { const value = await api.vault.fileInfo(relPath); if (!disposed && request === generation) setInfo(value) }
+      try { const value = await api.realm.fileInfo(relPath); if (!disposed && request === generation) setInfo(value) }
       catch { if (!disposed && request === generation) setInfo(null) }
     }
     setInfo(null)
     void read()
-    const off = api.vault.onChanged(change => { if (change.full || change.changes.some(file => file.relPath === relPath)) void read() })
+    const off = api.realm.onChanged(change => { if (change.full || change.changes.some(file => file.relPath === relPath)) void read() })
     return () => { disposed = true; off() }
   }, [relPath])
   const entry = api.getState().indexEntries.find(file => file.relPath === relPath)

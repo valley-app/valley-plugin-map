@@ -51,7 +51,7 @@ const CSS = `
 
 /* ---- add / edit a favourite place ------------------------------------ */
 /* Layout only: the name input is .map-input, the address field is the shared
-   SearchBox and the document field is the settings kit's VaultFileField,
+   SearchBox and the document field is the settings kit's RealmFileField,
    which brings its own frame, width and error line. */
 .map-place-form { display:flex; flex-direction:column; gap:6px; margin:0 8px 6px; padding:8px;
   border:1px solid var(--border-light); border-radius:var(--radius);

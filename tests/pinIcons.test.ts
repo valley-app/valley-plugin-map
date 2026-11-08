@@ -5,7 +5,7 @@ import { mapIconSvg, refreshMapIcons, sanitizePinSvg } from '../src/pinIcons'
 
 const fern = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path d="M4 4L40 40" stroke="currentColor"/></svg>'
 
-describe('vault map icons', () => {
+describe('realm map icons', () => {
   it('discovers user files and refreshes edited artwork', async () => {
     const mock = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
     initRuntime(mock.api)
@@ -28,7 +28,7 @@ describe('vault map icons', () => {
     expect(() => sanitizePinSvg('<!DOCTYPE svg>'+fern)).toThrow()
   })
 
-  it('isolates catalogs between vault sessions', async () => {
+  it('isolates catalogs between realm sessions', async () => {
     const first = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
     const second = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
     expect(mapIconSvg('unknown', first.api)).toBe(mapIconSvg('pin', second.api))

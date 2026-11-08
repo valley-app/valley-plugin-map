@@ -13,7 +13,7 @@ const owners = new WeakMap<ValleyPluginApi, MapRenderOwner>()
 let current: MapRenderOwner | undefined
 
 function createRenderOwner(source: ValleyPluginApi) {
-  const root = source.getState().vault?.path
+  const root = source.getState().realm?.path
   let active = true
   let disposal: Promise<void> | undefined
   let offState = (): void => {}
@@ -21,7 +21,7 @@ function createRenderOwner(source: ValleyPluginApi) {
   const cleanups = new Set<() => void>()
   const owner = {
     api: source,
-    isActive: (): boolean => { try { return active && source.getState().vault?.path === root } catch { return false } },
+    isActive: (): boolean => { try { return active && source.getState().realm?.path === root } catch { return false } },
     assertActive(): void { if (!owner.isActive()) throw new Error('The map rendering session is no longer active.') },
     run<T>(work: () => T | Promise<T>): Promise<T> {
       const task = (async () => { owner.assertActive(); return work() })()
@@ -43,7 +43,7 @@ function createRenderOwner(source: ValleyPluginApi) {
       })()
     }
   }
-  offState = source.subscribeState(['vault'], () => { if (!owner.isActive()) void owner.dispose().catch(() => {}) })
+  offState = source.subscribeState(['realm'], () => { if (!owner.isActive()) void owner.dispose().catch(() => {}) })
   return owner
 }
 export type MapRenderOwner = ReturnType<typeof createRenderOwner>

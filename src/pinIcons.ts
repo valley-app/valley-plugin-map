@@ -85,7 +85,7 @@ export function initializeMapIcons(owner: ValleyPluginApi): () => void {
     timer = setTimeout(() => { if (!disposed) void refreshMapIcons(owner) }, 150)
   }
   void refreshMapIcons(owner)
-  const off = owner.vault.onChanged(info => {
+  const off = owner.realm.onChanged(info => {
     if (info.full || info.changes.some(change => change.relPath.startsWith(`${MAP_ICON_FOLDER}/`))) refresh()
   })
   return () => { disposed = true; clearTimeout(timer); off() }

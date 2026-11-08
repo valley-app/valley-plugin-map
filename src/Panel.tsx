@@ -137,7 +137,7 @@ export const PlaceForm: FC<{ place?: Place; onClose: () => void }> = ({ place, o
       <ResourcePicker
         value={note}
         onChange={setNote}
-        kinds={['vault-file']}
+        kinds={['realm-file']}
         allowCustom={false}
         placeholder={uiText('auto.4a8b395d17d7')}
         ariaLabel={uiText('auto.4a8b395d17d7')}

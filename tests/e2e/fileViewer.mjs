@@ -27,13 +27,13 @@ const files = ${JSON.stringify(fixtures)};
 const runtime = new Map();
 const changes = new Set();
 const api = {
-  React, getState: () => ({ vault: { path: '/synthetic-map-fixture' } }), subscribeState: () => () => {},
+  React, getState: () => ({ realm: { path: '/synthetic-map-fixture' } }), subscribeState: () => () => {},
   runtime: { getOrCreate(key, create) { if (!runtime.has(key)) runtime.set(key, create()); return runtime.get(key); } },
   settings: { get: () => ({}), subscribe: () => () => {} },
   ui: { registerCatalogs(catalogs) { this.catalogs = catalogs }, t(key) { return this.catalogs?.en[key] ?? key } },
   assets: { url: () => '/island.js' },
   backend: { async call(method) { if (method !== 'resource') throw Error('Unexpected backend call: ' + method); return { bodyBase64: btoa(JSON.stringify({ version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': document.documentElement.dataset.theme === 'light' ? '#f4f4f4' : '#202024' } }] })) } } },
-  vault: { async readFileBaseline(path) { return files[path] === undefined ? null : { content: files[path], baseline: { hash: 'fixture', size: files[path].length, mtimeMs: 0 } }; }, onChanged(listener) { changes.add(listener); return () => changes.delete(listener) } }
+  realm: { async readFileBaseline(path) { return files[path] === undefined ? null : { content: files[path], baseline: { hash: 'fixture', size: files[path].length, mtimeMs: 0 } }; }, onChanged(listener) { changes.add(listener); return () => changes.delete(listener) } }
 };
 window.fixtureEngines = [];
 let island;

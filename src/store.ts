@@ -482,7 +482,7 @@ export class MapStore {
   constructor(api: ValleyPluginApi) {
     this.api = api
     this.renderOwner = captureMapRenderOwner(api)
-    this.root = api.getState().vault?.path
+    this.root = api.getState().realm?.path
     this.index = createIndexObserver(api, { kinds: ['note'], fields: ['title', 'aliases', 'kind', 'excluded', 'frontmatter'] })
     this.requests = createMapRequests(api)
     this.geocoding = createBackgroundGeocoding({
@@ -514,7 +514,7 @@ export class MapStore {
     this.offAppearance = this.api.settings.core.subscribe(this.onSystemColorMode)
     this.rebuild()
     this.syncLiveLocation(api.getState())
-    this.offState = this.api.subscribeState(['vault', 'units', 'liveLocationState', 'liveLocation', 'allowLiveLocation'], () => this.onCoreState())
+    this.offState = this.api.subscribeState(['realm', 'units', 'liveLocationState', 'liveLocation', 'allowLiveLocation'], () => this.onCoreState())
     const indexReady = new Promise<void>((resolve, reject) => {
       this.rejectIndexReady = reject
       this.offIndex = this.index.subscribe(() => {
@@ -1150,7 +1150,7 @@ export class MapStore {
   private onCoreState(): void {
     if (this.disposed) return
     const state = this.api.getState()
-    if (state.vault?.path !== this.root) { void this.dispose().catch(() => {}); return }
+    if (state.realm?.path !== this.root) { void this.dispose().catch(() => {}); return }
     this.syncLiveLocation(state)
     const units = normalizeUnits(state.units, METRIC_UNITS)
     if (!sameUnits(units, this.units)) {

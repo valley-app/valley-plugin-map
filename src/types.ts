@@ -65,7 +65,7 @@ export interface Place {
   category?: string
   /** Optional color (CSS string) for the marker. */
   color?: string
-  /** Optional `[[wikilink]]` (or vault path) to a related note. */
+  /** Optional `[[wikilink]]` (or realm path) to a related note. */
   note?: string
   createdAt: string
 }
@@ -141,7 +141,7 @@ export interface RoutePlan {
   modeApproximated?: boolean
 }
 
-/** A pin derived from a vault note's frontmatter coordinates. */
+/** A pin derived from a realm note's frontmatter coordinates. */
 export interface GeoPin {
   relPath: string
   title: string
@@ -165,7 +165,7 @@ export interface PinSource {
   matchKey: string
   /** Value `matchKey` must equal, compared case-insensitively (e.g. "contact"). */
   matchValue: string
-  /** Optional vault-relative folder the notes must live under. */
+  /** Optional realm-relative folder the notes must live under. */
   folder?: string
   /** Whether `locationField` holds an address to geocode or a "lat,lng" coordinate. */
   locationMode: LocationMode

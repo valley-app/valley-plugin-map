@@ -47,14 +47,14 @@ function useSettingsValues(): [Record<string, unknown>, (key: string, value: unk
   return [values, commit]
 }
 
-/** The offline basemap is a vault file: draft locally, save on commit, and let the
+/** The offline basemap is a realm file: draft locally, save on commit, and let the
  *  shared field report a missing file. */
 const OfflineBasemapField: FC<{ value: string; onCommit: (value: string) => void }> = ({ value, onCommit }) => {
-  const { VaultFileField } = api.ui.settings
+  const { RealmFileField } = api.ui.settings
   const [draft, setDraft] = React.useState(value)
   React.useEffect(() => setDraft(value), [value])
   return (
-    <VaultFileField
+    <RealmFileField
       value={draft}
       onChange={setDraft}
       onCommit={(next) => onCommit(next.trim())}
@@ -322,11 +322,11 @@ const DraftTextField: FC<{
 /** The folder filter drafts locally and saves on commit: saving every keystroke
  *  re-rendered the host field mid-word and dropped what was being typed. */
 const DraftFolderField: FC<{ value: string; onCommit: (value: string) => void }> = ({ value, onCommit }) => {
-  const { VaultFolderField } = api.ui.settings
+  const { RealmFolderField } = api.ui.settings
   const [draft, setDraft] = React.useState(value)
   React.useEffect(() => setDraft(value), [value])
   return (
-    <VaultFolderField
+    <RealmFolderField
       value={draft}
       onChange={setDraft}
       onCommit={onCommit}
@@ -410,7 +410,7 @@ const PinIconGrid: FC<{ selected: string; onSelect: (id: string) => void }> = ({
 
 /**
  * What this source currently finds. A mistyped key, value or location property
- * is otherwise indistinguishable from an empty vault — nothing appears on the
+ * is otherwise indistinguishable from an empty realm — nothing appears on the
  * map and nothing says why. Silent on an unfinished rule. The Calendar's
  * note-date sources carry the same line, in the same place, for the same reason.
  */

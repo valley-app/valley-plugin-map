@@ -76,7 +76,7 @@ const sourceDatasets = (sources: Record<string, unknown>[]) => ({
   }))
 })
 
-/** The pin source the development vault seeds, as the settings pane reads it. */
+/** The pin source the development realm seeds, as the settings pane reads it. */
 const CONTACTS_SOURCE = {
   id: 'pinsource-contacts',
   title: 'Contacts',

@@ -422,7 +422,7 @@ export function registerMapSurfaces(pluginApi: ValleyPluginApi): () => void {
     },
     restore: async (raw, _instance, options) => {
       if (typeof raw.path === 'string') {
-        if (!await pluginApi.vault.fileInfo(raw.path)) throw new Error(uiText('surface.unavailable'))
+        if (!await pluginApi.realm.fileInfo(raw.path)) throw new Error(uiText('surface.unavailable'))
         restoreMapFileBookmark(raw)
         if (!options?.background) await pluginApi.workspace.openFile(raw.path)
       } else await store.restoreSurfaceState(raw, options?.background)

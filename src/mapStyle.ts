@@ -40,7 +40,7 @@ function rasterStyle(tiles: string[], attribution: string, dimmed = false): Styl
   } as unknown as StyleSpecification
 }
 
-// A raster PMTiles archive served over valley-vault:// (Range-capable) for a
+// A raster PMTiles archive served over valley-realm:// (Range-capable) for a
 // fully offline base map; the pmtiles protocol resolves the tiles.
 function offlineStyle(path: string): StyleSpecification {
   return {

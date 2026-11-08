@@ -134,7 +134,7 @@
         "label": "Offline basemap (.pmtiles)",
         "type": "text",
         "default": "",
-        "validate": "vault-file",
+        "validate": "realm-file",
         "labelKey": "auto.c8caf0a6cf35"
       },
       {
@@ -3232,7 +3232,7 @@
       "geo.elevation"
     ],
     "storage": {
-      "vault": true,
+      "realm": true,
       "metadata": [
         "assets/icon/map-icon"
       ]

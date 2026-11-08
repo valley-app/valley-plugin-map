@@ -40,7 +40,7 @@ it('renders a contributed panel, passes edited values, and ends its active lifec
 
 it('shows read-only status in file Info', async () => {
   const mock = setup()
-  mock.api.vault.fileInfo = vi.fn().mockResolvedValue({ size: 2048, mtimeMs: 1 })
+  mock.api.realm.fileInfo = vi.fn().mockResolvedValue({ size: 2048, mtimeMs: 1 })
   render(<FileInfo relPath="fern.gpx" />)
   expect(screen.getByText('Read-only')).toBeInTheDocument()
   expect(screen.getByText('GPX')).toBeInTheDocument()

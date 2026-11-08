@@ -212,7 +212,7 @@ export function register(api: PluginBackendApi): () => void {
     let pending = offlineFiles.get(path)
     if (!pending) {
       if (offlineFiles.size >= 16) throw new Error(uiText('backend.archives'))
-      pending = api.files.openVault(path)
+      pending = api.files.openRealm(path)
       offlineFiles.set(path, pending)
       void pending.catch(() => offlineFiles.delete(path))
     }

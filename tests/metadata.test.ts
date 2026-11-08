@@ -76,7 +76,7 @@ describe('mapFacts', () => {
 describe('mapPanelSegment', () => {
   it('claims the plugin’s own tabs and no file type', () => {
     // Declaring a file filter here would put the map's panel on notes; declaring
-    // none *without* `pluginTabs` would put it on every file in the vault.
+    // none *without* `pluginTabs` would put it on every file in the realm.
     const segment = mapPanelSegment(() => null)
     expect(segment.pluginTabs).toBe(true)
     expect(segment.extensions).toBeUndefined()

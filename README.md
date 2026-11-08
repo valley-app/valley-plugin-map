@@ -20,7 +20,7 @@ Rendering uses the configured basemap. Authored simplestyle colours, widths, and
 
 The round control on the map switches between Light and Dark only. System, which follows Valley's appearance, is chosen in the right-sidebar Map mode field; both controls show the same mode. On the map page, the footer's Coordinates and Address describe the same point as the header, the map centre.
 
-This is an external plugin and is not bundled with Valley. An installed copy lives in the vault's `.valley/plugins/packages/github/map/` (installed from GitHub) or `.valley/plugins/packages/local/map/` (installed from a local package). Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. Ordinary vault documents and saved plugin data (`.valley/plugins/data/map/`) keep their existing locations.
+This is an external plugin and is not bundled with Valley. An installed copy lives in the realm's `.valley/plugins/packages/github/map/` (installed from GitHub) or `.valley/plugins/packages/local/map/` (installed from a local package). Core and external installations run with the same sandbox, permissions, and SDK/IPC contract. Ordinary realm documents and saved plugin data (`.valley/plugins/data/map/`) keep their existing locations.
 
 ## Map pins
 
@@ -52,7 +52,7 @@ npm ci
 npm run check
 ```
 
-The standalone rendering check uses synthetic in-memory files in a sandboxed browser frame and the compiled map runtime. It does not launch the application or access a vault:
+The standalone rendering check uses synthetic in-memory files in a sandboxed browser frame and the compiled map runtime. It does not launch the application or access a realm:
 
 ```sh
 npm run build
@@ -66,7 +66,7 @@ The check validates types and package boundaries, builds the file reader twice (
 
 Valley release maintainers explicitly import the compiled artifact into the application’s `plugins.lock.json`; building Valley does not build or read this repository. All privileged work uses declared SDK capabilities, authenticated IPC, and explicit grants. Disabling or unloading the plugin releases its subscriptions and resources.
 
-Measurements in Map settings updates shared vault units for distance, elevation, area, large area, speed, pace, and coordinates. Changes apply live across map views and other plugins without moving the map camera.
+Measurements in Map settings updates shared realm units for distance, elevation, area, large area, speed, pace, and coordinates. Changes apply live across map views and other plugins without moving the map camera.
 
 ## Maps sidebar extensions
 
