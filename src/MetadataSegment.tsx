@@ -11,6 +11,7 @@
  * so a reading here can never disagree with what is on screen. Service facts
  * resolve from the current map style and the same settings used by requests.
  */
+import { visibleTimer } from './visibleTimer'
 import type { FC, ReactNode } from 'react'
 import { React, api } from './runtime'
 import { useMap } from './hooks'
@@ -112,8 +113,7 @@ export const MetadataSegment: FC = () => {
   const hasFix = snap.liveLocation !== null
   React.useEffect(() => {
     if (!hasFix) return
-    const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
+    return visibleTimer(document, () => setNow(Date.now()), 1000)
   }, [hasFix])
 
   if (!store) return null
