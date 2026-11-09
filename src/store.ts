@@ -1033,10 +1033,12 @@ export class MapStore {
   async restoreSurfaceState(raw: Record<string, unknown>, background = false): Promise<void> {
     await this.ready
     const state = { ...this.buildLinkState(), selectedPlaceId: null, selectedResult: null, ...raw }
-    if (state.v !== 1 || (state.selectedPlaceId && !this.places.some((place) => place.id === state.selectedPlaceId))) throw new Error(uiText('surface.unavailable'))
+    const placeMissing = Boolean(state.selectedPlaceId) && !this.places.some((place) => place.id === state.selectedPlaceId)
     const route = typeof raw.savedRouteId === 'string' ? this.routes.find((entry) => entry.id === raw.savedRouteId) : null
     const source = typeof raw.selectedSourceId === 'string' ? this.pinSources.find((entry) => entry.id === raw.selectedSourceId) : null
-    if ((raw.savedRouteId && !route) || (raw.selectedSourceId && !source)) throw new Error(uiText('surface.unavailable'))
+    const stale = placeMissing || Boolean(raw.savedRouteId && !route) || Boolean(raw.selectedSourceId && !source)
+    if (state.v !== 1 || (stale && !background)) throw new Error(uiText('surface.unavailable'))
+    if (placeMissing) state.selectedPlaceId = null
     if ((raw.panelTab !== undefined && !isPanelTab(raw.panelTab)) || (raw.plannerMode !== undefined && !TRAVEL_MODES.includes(raw.plannerMode as TravelMode)) || (raw.clickMode !== undefined && raw.clickMode !== 'place' && raw.clickMode !== 'route')) throw new Error(uiText('surface.invalid'))
     if (!this.applyReadyLinkState(state, false)) throw new Error(uiText('surface.invalid'))
     if (raw.panelTab !== undefined) this.panelTab = raw.panelTab as PanelTab

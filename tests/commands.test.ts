@@ -161,6 +161,8 @@ describe('mapbox commands', () => {
     expect(h.store.getSnapshot()).toBe(before)
     await expect(surface.restore({ selectedPlaceId: 'removed' })).rejects.toThrow('unavailable')
     expect(h.store.getSnapshot().selectedPlaceId).toBe(seededPlace.id)
+    await expect(surface.restore({ ...h.store.buildSurfaceState(), selectedPlaceId: 'removed', savedRouteId: 'gone', selectedSourceId: 'gone' }, undefined, { background: true })).resolves.toBeUndefined()
+    expect(h.store.buildSurfaceState()).toMatchObject({ savedRouteId: null, selectedSourceId: null })
   })
 
   it('restores a saved route without requesting routing or opening another panel', async () => {

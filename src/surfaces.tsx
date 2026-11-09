@@ -297,7 +297,6 @@ function selectedRecord(subject?: PluginInspectionSubject): { kind: 'place' | 'r
   const place = typeof raw.selectedPlaceId === 'string' ? snap.places.find((entry) => entry.id === raw.selectedPlaceId) : null
   const route = typeof raw.savedRouteId === 'string' ? snap.routes.find((entry) => entry.id === raw.savedRouteId) : null
   const source = typeof raw.selectedSourceId === 'string' ? snap.pinSources.find((entry) => entry.id === raw.selectedSourceId) : null
-  if ((raw.selectedPlaceId && !place) || (raw.savedRouteId && !route) || (raw.selectedSourceId && !source)) throw new Error(uiText('surface.unavailable'))
   if (place) return { kind: 'place', record: place as unknown as Record<string, unknown>, fields: placeFields }
   if (route) return { kind: 'route', record: route as unknown as Record<string, unknown>, fields: routeFields }
   if (source) return { kind: 'source', record: source as unknown as Record<string, unknown>, fields: sourceFields }
