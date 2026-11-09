@@ -40,7 +40,7 @@ export function registerMapAutomation(api: ValleyPluginApi): () => void {
     if (!route) throw Object.assign(new Error(`No saved route "${id}".`), { code: 'NOT_FOUND', outcome: 'not-applied' })
     return route
   }
-  register({ id: 'list-pin-sources', label: 'Map: List pin sources', labelKey: 'surface.listSources', sideEffect: 'read', run: () => structuredClone(store.getSnapshot().pinSources) })
+  register({ id: 'list-pin-sources', menu: false, label: 'Map: List pin sources', labelKey: 'surface.listSources', sideEffect: 'read', run: () => structuredClone(store.getSnapshot().pinSources) })
   register<{ source: Record<string, unknown> }, PinSource, 'write'>({
     id: 'save-pin-source', label: 'Map: Save pin source', labelKey: 'surface.saveSource', paletteSafe: false, sideEffect: 'write',
     input: { schema: schema({ source: { type: 'object' } }, ['source']), parse: (raw) => ({ source: object(object(raw).source) }), fromCli: (_args, flags) => ({ source: json(flags.source) }) },

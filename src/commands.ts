@@ -125,6 +125,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
   const offs = [
     register({
       id: 'open',
+      menu: false,
       label: 'Map: Open map', labelKey: 'auto.d5f9cda6b0f7',
       sideEffect: 'write',
       run: () => {
@@ -428,6 +429,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
 
     register({
       id: 'clear-route',
+      menu: { group: 'route', order: 10, label: 'Clear Route', labelKey: 'menu.clearRoute' },
       label: 'Map: Clear the route', labelKey: 'auto.4c236fbd5136',
       sideEffect: 'write',
       run: async () => {
@@ -440,6 +442,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
     // ── Saved places ─────────────────────────────────────────────────────────
     register({
       id: 'list-places',
+      menu: false,
       label: 'Map: List saved places', labelKey: 'auto.a81b0ba2cd11',
       sideEffect: 'read',
       run: () => live().getSnapshot().places,
@@ -564,6 +567,7 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
     // ── Saved routes ─────────────────────────────────────────────────────────
     register({
       id: 'list-routes',
+      menu: false,
       label: 'Map: List saved routes', labelKey: 'auto.2a346d4c3018',
       sideEffect: 'read',
       run: () => live().getSnapshot().routes,

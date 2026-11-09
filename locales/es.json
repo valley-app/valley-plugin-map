@@ -456,5 +456,6 @@
   "sources.noResults": "0 fuentes encontradas",
   "bookmark.view": "Vista del mapa",
   "backend.unreadable": "El servicio de mapas devolvió una respuesta que no contiene datos de mapa válidos.",
-  "map.networkDisabled": "El mapa está sin conexión: el acceso a la red está desactivado. Las teselas, la búsqueda y las rutas no están disponibles."
+  "map.networkDisabled": "El mapa está sin conexión: el acceso a la red está desactivado. Las teselas, la búsqueda y las rutas no están disponibles.",
+  "menu.clearRoute": "Borrar ruta"
 }

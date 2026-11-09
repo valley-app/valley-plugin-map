@@ -456,5 +456,6 @@
   "sources.noResults": "找到 0 个来源",
   "bookmark.view": "地图视图",
   "backend.unreadable": "地图服务返回的响应不是有效的地图数据。",
-  "map.networkDisabled": "地图处于离线状态：网络访问已禁用。图块、搜索和路线均不可用。"
+  "map.networkDisabled": "地图处于离线状态：网络访问已禁用。图块、搜索和路线均不可用。",
+  "menu.clearRoute": "清除路线"
 }

@@ -456,5 +456,6 @@
   "sources.noResults": "0 sources found",
   "bookmark.view": "Map view",
   "backend.unreadable": "The map service returned a response that is not valid map data.",
-  "map.networkDisabled": "Map is offline: network access is disabled. Tiles, search and routes are unavailable."
+  "map.networkDisabled": "Map is offline: network access is disabled. Tiles, search and routes are unavailable.",
+  "menu.clearRoute": "Clear Route"
 }

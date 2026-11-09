@@ -456,5 +456,6 @@
   "sources.noResults": "0 source trouvée",
   "bookmark.view": "Vue de la carte",
   "backend.unreadable": "Le service cartographique a renvoyé une réponse qui ne contient pas de données cartographiques valides.",
-  "map.networkDisabled": "La carte est hors ligne : l’accès réseau est désactivé. Tuiles, recherche et itinéraires sont indisponibles."
+  "map.networkDisabled": "La carte est hors ligne : l’accès réseau est désactivé. Tuiles, recherche et itinéraires sont indisponibles.",
+  "menu.clearRoute": "Effacer l'itinéraire"
 }
