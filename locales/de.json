@@ -433,7 +433,7 @@
   "embed.codeSyntax": "Füge style: satellite, provider: mapbox und theme: light in eigenen Zeilen hinzu oder hänge |satellite|mapbox an die Koordinaten an.",
   "pins.icons.search": "Symbole suchen",
   "pins.icons.empty": "Keine passenden Symbole.",
-  "pins.icons.hint": "SVG-Dateien in .valley/assets/icon/map-icon hinzufügen und aktualisieren.",
+  "pins.icons.hint": "SVG-Dateien in .valley/assets/icons/map-icon hinzufügen und aktualisieren.",
   "pins.icons.open": "Symbolordner öffnen",
   "pins.icons.refresh": "Aktualisieren",
   "pins.icons.readError": "Einige Symbole konnten nicht geladen werden",
@@ -457,5 +457,6 @@
   "bookmark.view": "Kartenansicht",
   "backend.unreadable": "Der Kartendienst hat eine Antwort ohne gültige Kartendaten geliefert.",
   "map.networkDisabled": "Die Karte ist offline: Der Netzwerkzugriff ist deaktiviert. Kacheln, Suche und Routen sind nicht verfügbar.",
-  "menu.clearRoute": "Route löschen"
+  "menu.clearRoute": "Route löschen",
+  "search.savedPlace": "Gespeicherter Ort"
 }

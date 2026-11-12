@@ -433,7 +433,7 @@
   "embed.codeSyntax": "Ajoutez style: satellite, provider: mapbox et theme: light sur des lignes distinctes, ou ajoutez |satellite|mapbox aux coordonnées.",
   "pins.icons.search": "Rechercher des icônes",
   "pins.icons.empty": "Aucune icône correspondante.",
-  "pins.icons.hint": "Ajoutez des fichiers SVG dans .valley/assets/icon/map-icon, puis actualisez.",
+  "pins.icons.hint": "Ajoutez des fichiers SVG dans .valley/assets/icons/map-icon, puis actualisez.",
   "pins.icons.open": "Ouvrir le dossier des icônes",
   "pins.icons.refresh": "Actualiser",
   "pins.icons.readError": "Certaines icônes n’ont pas pu être chargées",
@@ -457,5 +457,6 @@
   "bookmark.view": "Vue de la carte",
   "backend.unreadable": "Le service cartographique a renvoyé une réponse qui ne contient pas de données cartographiques valides.",
   "map.networkDisabled": "La carte est hors ligne : l’accès réseau est désactivé. Tuiles, recherche et itinéraires sont indisponibles.",
-  "menu.clearRoute": "Effacer l'itinéraire"
+  "menu.clearRoute": "Effacer l'itinéraire",
+  "search.savedPlace": "Lieu enregistré"
 }

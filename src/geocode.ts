@@ -135,3 +135,33 @@ export async function reverseGeocode(
     return null
   }
 }
+
+/** Lower-case, accent-free text for forgiving name matching ("zurich" finds "Zürich"). */
+export function foldText(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+}
+
+/**
+ * Saved places whose name matches every word of the query, best first: a name
+ * that starts with the query, then one with a word starting with it, then any
+ * match. These are offered before geocoder hits, work offline, and stay
+ * available when the geocoder fails.
+ */
+export function matchSavedPlaces<T extends { name: string }>(query: string, places: readonly T[], limit = 5): T[] {
+  const q = foldText(query)
+  if (!q) return []
+  const words = q.split(/\s+/)
+  const scored: { place: T; score: number }[] = []
+  for (const place of places) {
+    const name = foldText(place.name)
+    if (!words.every((word) => name.includes(word))) continue
+    const score = name.startsWith(q) ? 0 : name.split(/[\s,.-]+/).some((part) => part.startsWith(words[0])) ? 1 : 2
+    scored.push({ place, score })
+  }
+  return scored.sort((a, b) => a.score - b.score || a.place.name.localeCompare(b.place.name)).slice(0, limit).map((entry) => entry.place)
+}
+
+/** Drop geocoder hits that sit on a saved place already offered (within ~50 m). */
+export function withoutNearDuplicates<T extends { lng: number; lat: number }>(hits: readonly T[], taken: readonly { lng: number; lat: number }[]): T[] {
+  return hits.filter((hit) => !taken.some((place) => Math.abs(place.lng - hit.lng) < 0.0005 && Math.abs(place.lat - hit.lat) < 0.0005))
+}

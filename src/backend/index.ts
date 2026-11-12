@@ -8,7 +8,7 @@ import type { MapPlaceHit, MapUsageQuota } from '../serviceClient'
 import { isValidLngLat } from '../geo'
 import { osrmUrl, osrmDemoUrl, orsProfile } from '../routing'
 import { createBackendRequests, type MapBackendRequest } from './requests'
-import { ACCOUNT_SEARCH_URL, PUBLIC_SEARCH_URL, GEOCODE_SEARCH_LIMIT } from '../geocodeProviders'
+import { ACCOUNT_SEARCH_URL, PUBLIC_REQUEST_HEADERS, PUBLIC_SEARCH_URL, GEOCODE_SEARCH_LIMIT } from '../geocodeProviders'
 
 const encode = (value: unknown) => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value))))
 const decode = (value: string): unknown => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(value), (character) => character.charCodeAt(0))))
@@ -123,7 +123,7 @@ export function register(api: PluginBackendApi): () => void {
     }))
   }
   handle('pinIcons', async () => {
-    const grant = await api.storage.open({ area: 'metadata', path: 'assets/icon/map-icon', kind: 'directory', mode: 'write' })
+    const grant = await api.storage.open({ area: 'metadata', path: 'assets/icons/map-icon', kind: 'directory', mode: 'write' })
     const location = (path: string) => ({ handle: grant.handle, path })
     try {
       await api.storage.mkdir(location(''))
@@ -233,6 +233,9 @@ export function register(api: PluginBackendApi): () => void {
     for (let offset = 0; offset < bytes.length; offset += 32768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768))
     return { bodyBase64: btoa(binary), etag: file.sha1 }
   }, false)
+  const appLanguage = (): string | undefined => {
+    try { return api.i18n.language() } catch { return undefined }
+  }
   handle('publicJson', async (payload, scope) => {
     let request: PluginFetchRequest
     if (payload.service === 'search') {
@@ -240,7 +243,7 @@ export function register(api: PluginBackendApi): () => void {
       // a station abbreviation resolve near where the user is looking.
       const near = payload.near === undefined ? null : coordinates([payload.near])[0]
       const bias = near ? `&viewbox=${[near[0] - 0.5, near[1] + 0.5, near[0] + 0.5, near[1] - 0.5].map(value => value.toFixed(5)).join(',')}` : ''
-      request = { url: `${PUBLIC_SEARCH_URL}?format=jsonv2&limit=${GEOCODE_SEARCH_LIMIT}&q=${encodeURIComponent(text(payload.query))}${bias}` }
+      request = { url: `${PUBLIC_SEARCH_URL}?format=jsonv2&dedupe=1&limit=${GEOCODE_SEARCH_LIMIT}&q=${encodeURIComponent(text(payload.query))}${bias}` }
     }
     else if (payload.service === 'reverse') {
       const [[lng, lat]] = coordinates([[payload.longitude, payload.latitude]])
@@ -252,7 +255,9 @@ export function register(api: PluginBackendApi): () => void {
       request = { url: payload.demo === true ? osrmDemoUrl(waypoints) : osrmUrl(waypoints, travelMode(payload.mode)), timeoutMs: 20000 }
     } else if (payload.service === 'elevation') request = { url: 'https://api.open-elevation.com/api/v1/lookup', method: 'POST', headers: { 'Content-Type': 'application/json' }, bodyBase64: encode({ locations: coordinates(payload.coordinates).map(([longitude, latitude]) => ({ longitude, latitude })) }), timeoutMs: 15000 }
     else throw new Error(uiText('backend.service'))
-    const response = await scope.fetch({ headers: { Accept: 'application/json' }, ...request })
+    // Place names in the app's language: "Schweiz", not "Schweiz / Suisse / Svizzera / Svizra".
+    const language = payload.service === 'search' || payload.service === 'reverse' ? appLanguage() : undefined
+    const response = await scope.fetch({ ...request, headers: { Accept: 'application/json', ...PUBLIC_REQUEST_HEADERS, ...(language ? { 'Accept-Language': language } : {}), ...request.headers } })
     let json: unknown
     try { json = decode(response.bodyBase64) } catch {
       if (response.status < 200 || response.status >= 300) return { status: response.status, json: null }

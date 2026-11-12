@@ -41,7 +41,7 @@ const PlaceRow: FC<{ place: Place; onEdit: () => void }> = ({ place, onEdit }) =
           title={uiText('auto.c66a827e3397')}
           onClick={(e) => {
             e.stopPropagation()
-            store?.openNote(place.note as string)
+            store?.openNote(place.note as string, api.ui.hasModKey(e))
           }}
         >
           <ValleyIcon />

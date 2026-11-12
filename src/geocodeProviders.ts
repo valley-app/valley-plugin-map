@@ -11,3 +11,10 @@ export function searchProviderIdentity(settings: MapSettings): string {
   const account = parseAccountProviderChoice(choice)
   return account ? JSON.stringify([1, ACCOUNT_SEARCH_URL, GEOCODE_SEARCH_LIMIT, account.provider, account.connectionId]) : PUBLIC_SEARCH_ID
 }
+
+/**
+ * Nominatim's usage policy requires an identifying User-Agent; the backend's
+ * default (`node`) is refused with 403, which made every public search look
+ * like "No results".
+ */
+export const PUBLIC_REQUEST_HEADERS = { 'User-Agent': 'Valley-Map (+https://github.com/valley-app/valley-plugin-map)' } as const

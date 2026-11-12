@@ -433,7 +433,7 @@
   "embed.codeSyntax": "在单独的行中添加 style: satellite、provider: mapbox 和 theme: light，或在坐标后添加 |satellite|mapbox。",
   "pins.icons.search": "搜索图标",
   "pins.icons.empty": "没有匹配的图标。",
-  "pins.icons.hint": "将 SVG 文件添加到 .valley/assets/icon/map-icon，然后刷新。",
+  "pins.icons.hint": "将 SVG 文件添加到 .valley/assets/icons/map-icon，然后刷新。",
   "pins.icons.open": "打开图标文件夹",
   "pins.icons.refresh": "刷新",
   "pins.icons.readError": "部分图标无法加载",
@@ -457,5 +457,6 @@
   "bookmark.view": "地图视图",
   "backend.unreadable": "地图服务返回的响应不是有效的地图数据。",
   "map.networkDisabled": "地图处于离线状态：网络访问已禁用。图块、搜索和路线均不可用。",
-  "menu.clearRoute": "清除路线"
+  "menu.clearRoute": "清除路线",
+  "search.savedPlace": "已保存的地点"
 }

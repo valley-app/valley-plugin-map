@@ -37,7 +37,11 @@ import {
   sanitizePinSource,
   type GeoCache
 } from './pinSources'
-import { GeocodeError, searchPlaces, searchPlacesWithProvider, reverseGeocode } from './geocode'
+import { GeocodeError, matchSavedPlaces, searchPlaces, searchPlacesWithProvider, reverseGeocode } from './geocode'
+import { searchProviderIdentity } from './geocodeProviders'
+
+const PLACE_SEARCH_CACHE_MS = 10 * 60_000
+const PLACE_SEARCH_CACHE_SIZE = 100
 import { createMapRequests, readableError } from './requests'
 import { createBackgroundGeocoding } from './backgroundGeocoding'
 import { uiText } from './localization'
@@ -404,6 +408,8 @@ export class MapStore {
 
   private engine: MapEngine | null = null
   private places: Place[] = []
+  /** Recent geocoder answers, so typing a name again (or backspacing) costs no request. */
+  private placeSearchCache = new Map<string, { at: number; places: GeoResult[] }>()
   private routes: Route[] = []
   private pins: GeoPin[] = []
   private pinSources: PinSource[] = []
@@ -698,7 +704,20 @@ export class MapStore {
   /** Geocode biased toward where the map is pointed, so ambiguous names resolve nearby. */
   lookupPlaces(query: string, signal?: AbortSignal, settings = this.settings()): Promise<GeoResult[]> {
     const near: LngLat | undefined = this.savedView ? [this.savedView.lng, this.savedView.lat] : undefined
-    return this.requests.run(signal, request => searchPlaces(query, settings, request, near))
+    const key = JSON.stringify([searchProviderIdentity(settings), query.trim().toLowerCase(), near?.map((value) => value.toFixed(2))])
+    const cached = this.placeSearchCache.get(key)
+    if (cached && cached.at > Date.now() - PLACE_SEARCH_CACHE_MS) return Promise.resolve(cached.places)
+    return this.requests.run(signal, request => searchPlaces(query, settings, request, near)).then((places) => {
+      this.placeSearchCache.delete(key)
+      this.placeSearchCache.set(key, { at: Date.now(), places })
+      while (this.placeSearchCache.size > PLACE_SEARCH_CACHE_SIZE) this.placeSearchCache.delete(this.placeSearchCache.keys().next().value!)
+      return places
+    })
+  }
+
+  /** Saved Favourite Places matching a search, best first (see {@link matchSavedPlaces}). */
+  matchingSavedPlaces(query: string, limit?: number): Place[] {
+    return matchSavedPlaces(query, this.places, limit)
   }
 
   lookupAddress(lng: number, lat: number, signal?: AbortSignal): Promise<string | null> {
@@ -1399,14 +1418,14 @@ export class MapStore {
     this.markSession()
   }
 
-  openNote(ref: string): void {
+  openNote(ref: string, newTab?: boolean): void {
     if (this.disposed) return
-    if (this.index.getSnapshot().status !== 'ready') { void this.ready.then(() => this.openNote(ref)).catch(() => {}); return }
+    if (this.index.getSnapshot().status !== 'ready') { void this.ready.then(() => this.openNote(ref, newTab)).catch(() => {}); return }
     const wanted = ref.replace(/^\[\[|\]\]$/g, '').trim().toLowerCase()
     const entry = this.indexEntries.find(entry => [entry.relPath, entry.title, entry.relPath.split('/').at(-1)!, ...(entry.aliases ?? [])]
       .some(value => value.toLowerCase() === wanted || value.replace(/\.[^./]+$/, '').toLowerCase() === wanted))
     const path = entry?.relPath ?? ref
-    if (path) this.api.workspace.openFile(path)
+    if (path) { if (newTab) this.api.workspace.openFile(path, undefined, { newTab }); else this.api.workspace.openFile(path) }
   }
 
   // ---- layer toggles --------------------------------------------------------

@@ -28,7 +28,7 @@ Map pins settings offers searchable source cards with chevrons for expandable de
 
 Settings and the left sidebar share the saved source order; drag the grips or use their arrow keys to reorder. Each source list has a standard-height header with an All sources visibility switch. Hidden and empty source definitions remain saved.
 
-Pin artwork lives in `.valley/assets/icon/map-icon/`. The eight bundled SVGs are added only when missing, preserving user edits. Add your own SVG files there, then choose them with the source's icon button. The searchable picker offers Open icon folder and Refresh; SVG edits update the sidebar and map pins. Invalid SVGs are reported and executable or external SVG content is removed before rendering.
+Pin artwork lives in `.valley/assets/icons/map-icon/`. The eight bundled SVGs are added only when missing, preserving user edits. Add your own SVG files there, then choose them with the source's icon button. The searchable picker offers Open icon folder and Refresh; SVG edits update the sidebar and map pins. Invalid SVGs are reported and executable or external SVG content is removed before rendering.
 
 ## Package
 

@@ -18,6 +18,8 @@ it('opens related notes by filename and alias from owned pages without the legac
   store.openNote('0.md')
   expect(mock.api.workspace.openFile).toHaveBeenNthCalledWith(1, 'Grove/0.md')
   expect(mock.api.workspace.openFile).toHaveBeenNthCalledWith(2, 'Grove/0.md')
+  store.openNote('0.md', true)
+  expect(mock.api.workspace.openFile).toHaveBeenNthCalledWith(3, 'Grove/0.md', undefined, { newTab: true })
   expect(mock.api.getState().indexEntries).toEqual([])
 })
 

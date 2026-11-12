@@ -21,7 +21,7 @@ export const Planner: FC = () => {
   if (!store) return null
   const { plannerWaypoints: waypoints, plannerMode, plan } = snap
 
-  const exportRoute = async (kind: 'gpx' | 'geojson'): Promise<void> => {
+  const exportRoute = async (kind: 'gpx' | 'geojson', newTab = false): Promise<void> => {
     const route: Route = {
       id: 'export',
       // The card has no name field; name the file after its endpoints, the same
@@ -39,7 +39,7 @@ export const Planner: FC = () => {
     const res = await api.drivers.files.writeFile(relPath, content)
     if (res.ok) {
       setNotice(uiText('auto.2a5ebd96b5aa', { p0: relPath }))
-      api.workspace.openFile(relPath)
+      if (newTab) api.workspace.openFile(relPath, undefined, { newTab }); else api.workspace.openFile(relPath)
     } else {
       setNotice(uiText('auto.d6c17e9bd70b'))
     }
@@ -82,10 +82,10 @@ export const Planner: FC = () => {
       )}
       {plan && (
         <div className="map-export-row">
-          <button className="map-btn" onClick={() => void exportRoute('gpx')}>
+          <button className="map-btn" onClick={(e) => void exportRoute('gpx', api.ui.hasModKey(e))}>
             <Download /> GPX
           </button>
-          <button className="map-btn" onClick={() => void exportRoute('geojson')}>
+          <button className="map-btn" onClick={(e) => void exportRoute('geojson', api.ui.hasModKey(e))}>
             <Download /> GeoJSON
           </button>
         </div>

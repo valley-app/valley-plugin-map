@@ -433,7 +433,7 @@
   "embed.codeSyntax": "Add style: satellite, provider: mapbox, and theme: light on separate lines, or append |satellite|mapbox to the coordinates.",
   "pins.icons.search": "Search icons",
   "pins.icons.empty": "No matching icons.",
-  "pins.icons.hint": "Add SVG files to .valley/assets/icon/map-icon, then refresh.",
+  "pins.icons.hint": "Add SVG files to .valley/assets/icons/map-icon, then refresh.",
   "pins.icons.open": "Open icon folder",
   "pins.icons.refresh": "Refresh",
   "pins.icons.readError": "Some icons could not be loaded",
@@ -457,5 +457,6 @@
   "bookmark.view": "Map view",
   "backend.unreadable": "The map service returned a response that is not valid map data.",
   "map.networkDisabled": "Map is offline: network access is disabled. Tiles, search and routes are unavailable.",
-  "menu.clearRoute": "Clear Route"
+  "menu.clearRoute": "Clear Route",
+  "search.savedPlace": "Saved place"
 }

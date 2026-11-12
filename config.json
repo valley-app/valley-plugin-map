@@ -68,7 +68,11 @@
       "id": "pins",
       "label": "Map pins",
       "labelKey": "plugin.map.section.pins",
-      "icon": "pin"
+      "icon": "pin",
+      "storage": [
+        ".valley/plugins/data/map/",
+        ".valley/assets/icons/map-icon/"
+      ]
     },
     {
       "id": "mapbox",
@@ -3234,7 +3238,7 @@
     "storage": {
       "realm": true,
       "metadata": [
-        "assets/icon/map-icon"
+        "assets/icons/map-icon"
       ]
     },
     "largeData": true

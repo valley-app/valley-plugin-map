@@ -30,7 +30,9 @@ import { Page } from './Page'
 import { FileView } from './FileView'
 import { Planner } from './Planner'
 import { Settings } from './SettingsView'
-import { initLocalization } from './localization'
+import { initLocalization, uiText } from './localization'
+import { withoutNearDuplicates } from './geocode'
+import type { GeoResult } from './types'
 import { mapAgentTools } from './agentTools'
 import { registerMapFileCommands } from './fileCommands'
 
@@ -103,15 +105,30 @@ export function register(api: ValleyPluginApi): () => Promise<void> {
     kinds: ['place'],
     search: async (request) => {
       if (!request.kinds.includes('place') || request.query.trim().length < 2) return []
-      const places = await store.lookupPlaces(request.query)
-      return places.map((place) => ({
-        id: `${place.lng},${place.lat}`,
-        kind: 'place',
-        label: place.name,
-        description: place.context,
-        value: place.context ? `${place.name}, ${place.context}` : place.name,
-        metadata: { longitude: place.lng, latitude: place.lat }
-      }))
+      // Saved Favourite Places first: instant, offline, and still offered when the geocoder fails.
+      const saved = store.matchingSavedPlaces(request.query)
+      let found: GeoResult[] = []
+      try { found = await store.lookupPlaces(request.query) } catch (error) {
+        if (!saved.length) throw error
+      }
+      return [
+        ...saved.map((place) => ({
+          id: `saved:${place.id}`,
+          kind: 'place' as const,
+          label: place.name,
+          description: uiText('search.savedPlace'),
+          value: place.name,
+          metadata: { longitude: place.lng, latitude: place.lat }
+        })),
+        ...withoutNearDuplicates(found, saved).map((place) => ({
+          id: `${place.lng},${place.lat}`,
+          kind: 'place' as const,
+          label: place.name,
+          description: place.context,
+          value: place.context ? `${place.name}, ${place.context}` : place.name,
+          metadata: { longitude: place.lng, latitude: place.lat }
+        }))
+      ]
     }
   })
 
