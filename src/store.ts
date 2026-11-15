@@ -1,4 +1,5 @@
 import { mapIconSvg, subscribeMapIcons } from './pinIcons'
+import { filedRoutes, folderColor, normalizePlaceFolders, normalizeRouteFiling, visibleItems, visiblePlaces } from './placeFolders'
 import { mapServices } from './serviceClient'
 import type { DataRecord, IndexEntry } from '@valley/plugin-sdk/types'
 import { createIndexObserver } from '@valley/plugin-sdk'
@@ -87,6 +88,8 @@ function sameFix(a: LiveLocation | null, b: LiveLocation | null): boolean {
   return a.lng === b.lng && a.lat === b.lat && a.accuracy === b.accuracy && a.ts === b.ts
 }
 
+const stringList = (value: unknown): string[] => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
+
 function genId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 }
@@ -164,6 +167,8 @@ function rowStore(api: ValleyPluginApi, dataset: string): RecordStore {
     update: async (idField, idValue, record) => {
       const values = datasetValues(record)
       delete values[idField]
+      // A place's position belongs to `replace`; a stale in-memory copy must not undo a reorder.
+      if (dataset === PLACES_DATASET) delete values.position
       return (await api.data.dataset(dataset).update({ [idField]: idValue }, values)).affected > 0
     },
     delete: async (idField, idValue) => (await api.data.dataset(dataset).delete({ [idField]: idValue })).affected > 0,
@@ -321,6 +326,8 @@ export interface MapSnapshot {
   pins: GeoPin[]
   pinSources: PinSource[]
   sourcePins: NotePin[]
+  /** Every source's pins, closed eyes included — the sidebar lists a source's notes under it. */
+  sourcePinList: NotePin[]
   /** How many pins each source holds — independent of its eye toggle. */
   sourcePinCounts: Record<string, number>
   plannerWaypoints: Waypoint[]
@@ -416,6 +423,7 @@ export class MapStore {
   private sourcePins: NotePin[] = []
   /** Per-source pin totals, counted before the visibility filter. */
   private sourcePinCounts: Record<string, number> = {}
+  private sourcePinList: NotePin[] = []
   private geocache: GeoCache = new Map()
   private geocoding: ReturnType<typeof createBackgroundGeocoding>
   private matchSig = ''
@@ -536,8 +544,8 @@ export class MapStore {
         resolve()
       })
     })
-    this.offIcons = subscribeMapIcons(() => { this.refreshDerived(); this.emit() }, api)
-    this.offSettings = this.api.settings.subscribe(() => { this.refreshRequestProviders(); void this.refreshMapProviders() })
+    this.offIcons = subscribeMapIcons(() => { this.refreshDerived(); this.pushPlaces(); this.emit() }, api)
+    this.offSettings = this.api.settings.subscribe(() => { this.refreshRequestProviders(); void this.refreshMapProviders(); this.pushPlaces(); this.pushRoutes() })
     void this.refreshMapProviders()
     try {
       this.watchSourcesChanged()
@@ -627,6 +635,7 @@ export class MapStore {
       pins: this.pins,
       pinSources: this.pinSources,
       sourcePins: this.sourcePins,
+      sourcePinList: this.sourcePinList,
       sourcePinCounts: this.sourcePinCounts,
       plannerWaypoints: this.plannerWaypoints,
       plannerMode: this.plannerMode,
@@ -785,7 +794,12 @@ export class MapStore {
     this.viewLoaded = true
     // The loaded state is what the dataset holds: a mount, hide or dispose alone writes nothing.
     this.savedSettings.set(VIEW_SETTING, JSON.stringify(this.viewRecord()))
-    this.places = places.filter((p) => p && typeof p.id === 'string' && Number.isFinite(p.lng))
+    this.places = places.filter((p) => p && typeof p.id === 'string' && Number.isFinite(p.lng)).map(({ position: _position, ...place }: Place & { position?: unknown }) => {
+      const clean: Place = { ...place }
+      if (typeof clean.icon !== 'string' || !clean.icon) delete clean.icon
+      if (typeof clean.folder !== 'string' || !clean.folder) delete clean.folder
+      return clean
+    })
     this.routes = routes.filter((r) => r && typeof r.id === 'string' && Array.isArray(r.waypoints))
     this.pinSources = sources.map((r) => sanitizePinSource(r as Record<string, unknown>))
     this.sourcesLoaded = true
@@ -802,6 +816,7 @@ export class MapStore {
     this.sessionLoaded = true
     this.savedSettings.set(SESSION_SETTING, JSON.stringify(this.sessionRecord()))
     this.pushPlaces()
+    this.pushRoutes()
     this.refreshDerived()
     this.enqueueGeocoding()
     this.applySavedView()
@@ -1273,6 +1288,7 @@ export class MapStore {
     const counts: Record<string, number> = {}
     for (const pin of all) counts[pin.sourceId] = (counts[pin.sourceId] ?? 0) + 1
     this.sourcePinCounts = counts
+    this.sourcePinList = all
     const shown = new Set(this.pinSources.filter((s) => s.visible).map((s) => s.id))
     this.sourcePins = all.filter((p) => shown.has(p.sourceId)).map(pin => ({ ...pin, iconSvg: mapIconSvg(pin.icon, this.api) }))
     // A note claimed by a source shows as its styled marker — drop it from the
@@ -1345,7 +1361,8 @@ export class MapStore {
 
   attachMap(engine: MapEngine): void {
     this.engine = engine
-    engine.setPlaces(this.places)
+    this.pushPlaces()
+    this.pushRoutes()
     engine.setPins(this.pins)
     engine.setSourcePins(this.sourcePins)
     engine.setWaypoints(this.plannerWaypoints)
@@ -1375,8 +1392,22 @@ export class MapStore {
     }
   }
 
+  /** The main map draws the places whose eye is open — the Favorites bar's, every folder's above them and their own — as pins. */
   private pushPlaces(): void {
-    this.engine?.setPlaces(this.places)
+    const settings = this.api.settings.get()
+    const shown = settings.placesHidden === true ? [] : visiblePlaces(this.places, normalizePlaceFolders(settings.placeFolders), stringList(settings.hiddenPlaceFolders), stringList(settings.hiddenPlaces))
+    this.engine?.setPlaces([])
+    this.engine?.setPlaceMarkers(shown.map(place => ({ id: place.id, name: place.name, lng: place.lng, lat: place.lat, color: place.color, icon: place.icon, iconSvg: place.icon ? mapIconSvg(place.icon, this.api) : undefined })), this.selectedPlaceId)
+  }
+
+  /** The main map draws the saved routes whose eye is open — the Routes bar's, every folder's above them and their own — as lines in their folder's colour. */
+  private pushRoutes(): void {
+    if (!this.engine) return
+    const settings = this.api.settings.get()
+    const folders = normalizePlaceFolders(settings.routeFolders)
+    const shown = settings.routesHidden === true ? [] : visibleItems(filedRoutes(this.routes, normalizeRouteFiling(settings.routeFiling)), folders, stringList(settings.hiddenRouteFolders), stringList(settings.hiddenRoutes))
+    this.engine.setSavedRoutes(shown.flatMap(item => item.route.geometry && item.route.geometry.length > 1
+      ? [{ id: item.id, coords: item.route.geometry, color: folderColor(folders, item.folder) }] : []))
   }
 
   // ---- focus / navigation ---------------------------------------------------
@@ -1407,12 +1438,14 @@ export class MapStore {
   selectPlace(id: string | null): void {
     this.selectedPlaceId = id
     this.selectedSourceId = null
+    this.pushPlaces()
     this.emit()
     this.markSession()
   }
 
   focusPlace(place: Place): void {
     this.selectedPlaceId = place.id
+    this.pushPlaces()
     this.focus([place.lng, place.lat], 15)
     this.emit()
     this.markSession()
@@ -1694,7 +1727,7 @@ export class MapStore {
 
   // ---- places ---------------------------------------------------------------
 
-  async addPlace(input: { name: string; lng: number; lat: number; note?: string; color?: string }): Promise<Place> {
+  async addPlace(input: { name: string; lng: number; lat: number; note?: string; color?: string; icon?: string; folder?: string }): Promise<Place> {
     const place: Place = {
       id: genId('place'),
       name: input.name.trim() || 'Untitled place',
@@ -1702,6 +1735,8 @@ export class MapStore {
       lat: input.lat,
       note: input.note?.trim() || undefined,
       color: input.color,
+      ...(input.icon ? { icon: input.icon } : {}),
+      ...(input.folder ? { folder: input.folder } : {}),
       createdAt: new Date().toISOString()
     }
     if (!await this.rawAddPlace(place)) throw new Error(uiText('surface.invalid'))
@@ -1729,6 +1764,26 @@ export class MapStore {
     const saved = await this.records(PLACES_DATASET).update('id', place.id, place as unknown as DataRecord)
     if (!saved) return false
     this.places = this.places.map((p) => (p.id === place.id ? place : p))
+    this.pushPlaces()
+    this.emit()
+    return true
+  }
+
+  /** Replace the whole place list — its order and each place's folder — with one ⌘Z step. */
+  async reorderPlaces(next: Place[], label: string): Promise<void> {
+    const previous = this.places
+    if (!await this.replacePlacesRaw(next)) throw new Error(uiText('surface.invalid'))
+    this.api.undo.push({
+      label,
+      undo: async () => ({ ok: await this.replacePlacesRaw(previous) }),
+      redo: async () => ({ ok: await this.replacePlacesRaw(next) })
+    })
+  }
+
+  /** Replace the place list without a core ⌘Z action — for callers that own their own undo step. */
+  async replacePlacesRaw(next: Place[]): Promise<boolean> {
+    if (!await this.records(PLACES_DATASET).replace(next as unknown as DataRecord[])) return false
+    this.places = next
     this.pushPlaces()
     this.emit()
     return true
@@ -1988,6 +2043,7 @@ export class MapStore {
       createdAt: new Date().toISOString()
     }
     this.routes = [...this.routes, route]
+    this.pushRoutes()
     // Remember which saved route the open plan is, so the star can un-save it.
     this.savedRouteId = route.id
     this.emit()
@@ -2104,6 +2160,7 @@ export class MapStore {
   private async rawAddRoute(route: Route): Promise<boolean> {
     if (!await this.records(ROUTES_DATASET).append(route as unknown as DataRecord)) return false
     this.routes = [...this.routes.filter((r) => r.id !== route.id), route]
+    this.pushRoutes()
     // An undone un-save restores the star on the open plan.
     if (sameWaypoints(route.waypoints, this.plannerWaypoints) && route.mode === this.plannerMode) {
       this.savedRouteId = route.id
@@ -2116,6 +2173,7 @@ export class MapStore {
     if (!await this.records(ROUTES_DATASET).delete('id', id)) return false
     this.routes = this.routes.filter((r) => r.id !== id)
     if (this.savedRouteId === id) this.savedRouteId = null
+    this.pushRoutes()
     this.emit()
     return true
   }
@@ -2127,6 +2185,7 @@ export class MapStore {
     const ok = await this.records(ROUTES_DATASET).update('id', id, next as unknown as DataRecord)
     if (!ok) throw new Error(uiText('surface.invalid'))
     this.routes = this.routes.map((route) => route.id === id ? next : route)
+    this.pushRoutes()
     if (this.savedRouteId === id) await this.restoreSurfaceState({ ...this.buildSurfaceState(), savedRouteId: id }, true)
     this.emit()
   }

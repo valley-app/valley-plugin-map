@@ -144,8 +144,47 @@ export const Upload = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></Svg>
 )
 
+export const ChevronLeft = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m15 18-6-6 6-6" /></Svg>
+)
+
 export const ChevronRight = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="m9 18 6-6-6-6" /></Svg>
+)
+
+/** Lucide `ellipsis` — the row's actions menu. */
+export const MoreHorizontal = (p: IconProps): ReactElement => (
+  <Svg {...p}><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></Svg>
+)
+
+/** Lucide `text-cursor-input` — rename. */
+export const TextCursorInput = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M5 4h1a3 3 0 0 1 3 3 3 3 0 0 1 3-3h1" /><path d="M13 20h-1a3 3 0 0 1-3-3 3 3 0 0 1-3 3H5" /><path d="M5 16H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1" /><path d="M13 8h7a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-7" /><path d="M9 7v10" /></Svg>
+)
+
+/** Lucide `folder-input` — move to a folder. */
+export const FolderInput = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1" /><path d="M2 13h10" /><path d="m9 16 3-3-3-3" /></Svg>
+)
+
+/** Lucide `chevrons-down-up` — collapse all, as in the Files header. */
+export const ChevronsDownUp = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m7 20 5-5 5 5M7 4l5 5 5-5" /></Svg>
+)
+
+/** Lucide `chevrons-up-down` — expand all, as in the Files header. */
+export const ChevronsUpDown = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="m7 15 5 5 5-5M7 9l5-5 5 5" /></Svg>
+)
+
+/** Lucide `folder`. */
+export const Folder = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></Svg>
+)
+
+/** Lucide `folder-plus`. */
+export const FolderPlus = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M12 10v6" /><path d="M9 13h6" /><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></Svg>
 )
 
 /** Lucide `navigation` — the paper-plane arrow on the route card's Start button. */
@@ -283,6 +322,12 @@ const GLYPH_MARKUP: Record<string, string> = Object.fromEntries(PIN_GLYPHS.map((
 export function glyphMarkup(id: string): string {
   return GLYPH_MARKUP[id] ?? GLYPH_MARKUP.pin
 }
+
+/** The same glyph without a hook, for host menus: their icons cross as static SVG markup, and a hook would make each one a slow nested surface. */
+export const MenuPinGlyph = ({ id }: { id: string }): ReactElement => React.createElement('svg', {
+  width: '1em', height: '1em', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2,
+  strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, dangerouslySetInnerHTML: { __html: mapIconSvg(id) }
+})
 
 /** A React glyph (colored via `currentColor`) for sidebar rows / pickers. */
 export const PinGlyph = ({ id, className }: { id: string; className?: string }): ReactElement => {

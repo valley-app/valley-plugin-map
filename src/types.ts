@@ -67,7 +67,23 @@ export interface Place {
   color?: string
   /** Optional `[[wikilink]]` (or realm path) to a related note. */
   note?: string
+  /** Glyph from the map icon folder; the pin glyph when unset. */
+  icon?: string
+  /** Id of the {@link PlaceFolder} the place is filed under; top level when unset. */
+  folder?: string
   createdAt: string
+}
+
+/** A folder of favourite places. Folders nest one level: a subfolder has no subfolders. */
+export interface PlaceFolder {
+  id: string
+  name: string
+  /** The top-level folder this one sits in. */
+  parent?: string
+  /** Glyph from the map icon folder; the folder glyph when unset. */
+  icon?: string
+  /** Palette colour of the glyph. */
+  color?: string
 }
 
 /** One stop on a planned route. */
@@ -202,6 +218,17 @@ export interface NotePin {
   iconSvg?: string
   /** Resolved hover fields (present values only), in the source's order. */
   fields: { key: string; value: string }[]
+}
+
+/** A favourite place as the main map draws it: its glyph markup resolved from the icon folder. */
+export interface PlaceMarker {
+  id: string
+  name: string
+  lng: number
+  lat: number
+  color?: string
+  icon?: string
+  iconSvg?: string
 }
 
 /** Resolved plugin settings (parsed from the manifest `settingsSchema`). */

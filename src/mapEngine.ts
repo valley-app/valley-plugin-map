@@ -23,6 +23,7 @@ import type {
   MapStyleId,
   NotePin,
   Place,
+  PlaceMarker,
   Waypoint
 } from './types'
 import { pinMarkerSvg } from './icons'
@@ -41,6 +42,11 @@ import type { ValleyUnits } from '@valley/plugin-sdk/units'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 
 const ROUTE_SOURCE = 'sig-route'
+const SAVED_ROUTES_SOURCE = 'sig-saved-routes'
+/** Saved routes draw thinner than the open plan and in a neutral grey unless their folder has a colour. */
+const SAVED_ROUTE_COLOR = '#8a8f98'
+const SAVED_ROUTE_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 2.5, 10, 4, 14, 6, 18, 10, 22, 16]
+const SAVED_ROUTE_CASING_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 5, 10, 7, 14, 9.5, 18, 14, 22, 21]
 const PLACES_SOURCE = 'sig-places'
 const PINS_SOURCE = 'sig-pins'
 const LOCATION_SOURCE = 'sig-location'
@@ -156,12 +162,16 @@ export class MapEngine {
   private searched: LngLat | null = null
 
   private route: LngLat[] = []
+  private savedRoutes: { id: string; coords: LngLat[]; color?: string }[] = []
   private places: Place[] = []
   private pins: GeoPin[] = []
   private location: LiveLocation | null = null
   private fileData: MapFileData['collection'] = { type: 'FeatureCollection', features: [] }
   private waypointMarkers: Marker[] = []
   private sourceMarkers: Marker[] = []
+  private placePins: PlaceMarker[] = []
+  private placeSelected: string | null = null
+  private placeMarkers: Marker[] = []
   private hoverPopup: Popup | null = null
   private searchMarker: Marker | null = null
   private scaleControl: ScaleControl | null = null
@@ -285,6 +295,7 @@ export class MapEngine {
       this.ready = true
       this.applyOverlays()
       this.setSourcePins(this.sourcePins)
+      this.setPlaceMarkers(this.placePins, this.placeSelected)
       this.setWaypoints(this.waypoints, this.snapped)
       this.setSearchMarker(this.searched)
       if (this.pendingCamera) { const run = this.pendingCamera; this.pendingCamera = null; run() }
@@ -294,6 +305,9 @@ export class MapEngine {
     map.on('move', () => { if (this.map === map) this.emitCamera() })
     map.on('error', event => { if (this.map === map && this.owner.isActive()) this.opts.onError?.(event.error) })
     map.on('styledata', () => { if (this.map === map && this.ready) this.applyOverlays() })
+    // `styledata` also fires while a swapped-in style (a provider's raster basemap) is still loading,
+    // when applyOverlays has to bail; once the map settles the overlays go back on.
+    map.on('idle', () => { if (this.map === map && this.ready && !map.getSource(ROUTE_SOURCE)) this.applyOverlays() })
     if (opts.retainSnapshot) map.on('idle', () => {
       if (this.map !== map || !this.ready) return
       this.captureSnapshot()
@@ -337,9 +351,10 @@ export class MapEngine {
     this.map = null
     this.ready = false
     this.scaleControl = null
-    for (const marker of [...this.waypointMarkers, ...this.sourceMarkers]) marker.remove()
+    for (const marker of [...this.waypointMarkers, ...this.sourceMarkers, ...this.placeMarkers]) marker.remove()
     this.waypointMarkers = []
     this.sourceMarkers = []
+    this.placeMarkers = []
     this.hoverPopup?.remove(); this.hoverPopup = null
     this.searchMarker?.remove(); this.searchMarker = null
     map.remove()
@@ -389,6 +404,7 @@ export class MapEngine {
     if (!map) return
     if (!map.isStyleLoaded()) return
     this.ensureSource(ROUTE_SOURCE)
+    this.ensureSource(SAVED_ROUTES_SOURCE)
     this.ensureSource(PLACES_SOURCE)
     this.ensureSource(PINS_SOURCE)
     this.ensureSource(LOCATION_SOURCE)
@@ -398,6 +414,21 @@ export class MapEngine {
     // and wears a casing, so it reads on satellite imagery as well as on paper
     // styles — the same two-layer treatment every road router uses.
     const labelLayer = this.routeInsertBeforeId()
+    // Saved routes the routes tab shows sit below the open plan, so the plan always reads on top.
+    if (!map.getLayer('sig-saved-routes-casing')) {
+      map.addLayer({
+        id: 'sig-saved-routes-casing', type: 'line', source: SAVED_ROUTES_SOURCE,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': this.opts.theme === 'light' ? '#ffffff' : '#0b0b0d', 'line-width': SAVED_ROUTE_CASING_WIDTH, 'line-opacity': 0.9 }
+      } as unknown as LayerSpecification, labelLayer)
+    }
+    if (!map.getLayer('sig-saved-routes-line')) {
+      map.addLayer({
+        id: 'sig-saved-routes-line', type: 'line', source: SAVED_ROUTES_SOURCE,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': ['coalesce', ['get', 'color'], SAVED_ROUTE_COLOR], 'line-width': SAVED_ROUTE_WIDTH, 'line-opacity': 0.95 }
+      } as unknown as LayerSpecification, labelLayer)
+    }
     if (!map.getLayer('sig-route-casing')) {
       map.addLayer(
         {
@@ -555,6 +586,10 @@ export class MapEngine {
         ? { type: 'FeatureCollection', features: [lineFeature(this.route)] }
         : emptyCollection()
     )
+    this.setData(SAVED_ROUTES_SOURCE, {
+      type: 'FeatureCollection',
+      features: this.savedRoutes.filter(route => route.coords.length > 1).map(route => lineFeature(route.coords, route.color ? { id: route.id, color: this.cssColor(route.color) } : { id: route.id }))
+    })
     this.setData(PLACES_SOURCE, placesToFeatureCollection(this.places.map((place) => place.color ? { ...place, color: this.cssColor(place.color) } : place)))
     this.setData(PINS_SOURCE, pinsToFeatureCollection(this.pins))
     this.setData(LOCATION_SOURCE, this.locationCollection())
@@ -585,6 +620,12 @@ export class MapEngine {
 
   setRoute(coords: LngLat[] | null): void {
     this.route = coords ?? []
+    this.syncData()
+  }
+
+  /** The saved routes drawn under the open plan; `color` is a stored palette value or literal. */
+  setSavedRoutes(routes: { id: string; coords: LngLat[]; color?: string }[]): void {
+    this.savedRoutes = routes
     this.syncData()
   }
 
@@ -687,6 +728,50 @@ export class MapEngine {
     for (const marker of previous.values()) marker.remove()
     this.sourceMarkers = markers
     if (changed || previous.size) { this.hoverPopup?.remove(); this.hoverPopup = null }
+  }
+
+  /**
+   * Favourite places as teardrop pins in their own colour and glyph, like note
+   * pins; the selected place is drawn larger and on top. The main map uses
+   * these, embeds keep the plain dots of {@link setPlaces}.
+   */
+  setPlaceMarkers(places: PlaceMarker[], selectedId: string | null): void {
+    this.placePins = places
+    this.placeSelected = selectedId
+    const map = this.map
+    if (!map || !this.ready) return
+    const previous = new Map(this.placeMarkers.map(marker => [marker.getElement().dataset.placeId, marker]))
+    const markers = places.map((place) => {
+      const selected = place.id === selectedId
+      const svg = pinMarkerSvg(place.color || 'palette:red', place.icon || 'pin', '#ffffff', place.iconSvg)
+      const signature = JSON.stringify([place.lng, place.lat, place.name, svg, selected])
+      const existing = previous.get(place.id)
+      previous.delete(place.id)
+      if (existing?.getElement().dataset.placeSignature === signature) return existing
+      existing?.remove()
+      const el = this.opts.container.ownerDocument.createElement('div')
+      let marker: Marker
+      const current = (): boolean => this.map === map && this.owner.isActive() && this.placeMarkers.includes(marker)
+      el.className = `map-note-marker map-place-marker${selected ? ' is-selected' : ''}`
+      el.dataset.placeId = place.id
+      el.dataset.placeSignature = signature
+      el.tabIndex = 0
+      el.title = place.name
+      el.setAttribute('role', 'button')
+      el.setAttribute('aria-label', place.name)
+      el.innerHTML = svg
+      const open = (event: Event): void => {
+        if (!current()) return
+        event.stopPropagation()
+        this.opts.onPlaceClick?.(place.id)
+      }
+      el.addEventListener('click', open)
+      el.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(event) } })
+      marker = new Marker({ element: el, anchor: 'bottom' }).setLngLat([place.lng, place.lat]).addTo(map)
+      return marker
+    })
+    for (const marker of previous.values()) marker.remove()
+    this.placeMarkers = markers
   }
 
   private showPinPopup(pin: NotePin): void {

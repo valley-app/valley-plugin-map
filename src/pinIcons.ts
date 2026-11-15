@@ -49,6 +49,10 @@ export function useMapIcons() {
   React.useSyncExternalStore(listener => subscribeMapIcons(listener, owner), () => registry(owner).revision)
   return registry(owner)
 }
+/** Every icon in the map icon folder, built-in and added. */
+export function mapIconIds(owner = api): string[] {
+  return Object.keys(registry(owner).icons)
+}
 export function mapIconSvg(id: string, owner = api): string {
   return registry(owner).icons[id] ?? DEFAULT_PIN_ICONS.pin
 }

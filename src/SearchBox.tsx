@@ -8,6 +8,8 @@ import { uiText } from './localization'
 type FieldProps = {
   placeholder?: string
   autoFocus?: boolean
+  /** Bumped by the caller to move focus into the input (0 leaves focus alone). */
+  focusToken?: number
   query: string
   results: GeoResult[]
   busy: boolean
@@ -130,6 +132,7 @@ function useFloatPosition(open: boolean, float: boolean | undefined): {
 export const SearchField: FC<FieldProps> = ({
   placeholder = 'Search places…',
   autoFocus,
+  focusToken = 0,
   query,
   results,
   busy,
@@ -147,11 +150,14 @@ export const SearchField: FC<FieldProps> = ({
   onClear
 }) => {
   const { ref, style } = useFloatPosition(open, float)
+  const input = React.useRef<HTMLInputElement>(null)
+  React.useEffect(() => { if (focusToken > 0) input.current?.focus() }, [focusToken])
   return (
     <div className={`map-search ${flat ? 'is-flat' : ''}`} ref={ref}>
       <div className="map-search-field search-field">
         {!hideIcon && <Search className="map-search-icon search-field-icon" />}
         <input
+          ref={input}
           className="map-search-input search-field-input"
           placeholder={placeholder}
           value={query}
@@ -199,10 +205,11 @@ export const SearchField: FC<FieldProps> = ({
 export const SharedSearchBox: FC<{
   placeholder?: string
   autoFocus?: boolean
+  focusToken?: number
   hideIcon?: boolean
   /** Sidebar mode: results are listed below the field by the panel, not in a dropdown. */
   inline?: boolean
-}> = ({ placeholder, autoFocus, hideIcon, inline }) => {
+}> = ({ placeholder, autoFocus, focusToken, hideIcon, inline }) => {
   const { store, snap } = useMap()
   if (!store) return null
   const hasHits = snap.searchBusy || snap.searchResults.length > 0 || Boolean(snap.searchError)
@@ -210,6 +217,7 @@ export const SharedSearchBox: FC<{
     <SearchField
       placeholder={placeholder}
       autoFocus={autoFocus}
+      focusToken={focusToken}
       hideIcon={hideIcon}
       query={snap.searchQuery}
       results={snap.searchResults}

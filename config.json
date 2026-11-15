@@ -270,6 +270,230 @@
         "default": []
       },
       {
+        "key": "placeFolders",
+        "label": "Favourite place folders",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "parent": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "icon": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "color": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "collapsedPlaceFolders",
+        "label": "Folded favourite place folders",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "hiddenPlaceFolders",
+        "label": "Favourite place folders hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "hiddenPlaces",
+        "label": "Favourite places hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "placesHidden",
+        "label": "All favourite places hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "boolean"
+        },
+        "default": false
+      },
+      {
+        "key": "routeFolders",
+        "label": "Favourite route folders",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "parent": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "icon": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "color": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "routeFiling",
+        "label": "Favourite route folders and icons per route",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "folder": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "icon": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "collapsedRouteFolders",
+        "label": "Folded favourite route folders",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "hiddenRouteFolders",
+        "label": "Favourite route folders hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "hiddenRoutes",
+        "label": "Favourite routes hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "routesHidden",
+        "label": "All favourite routes hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "boolean"
+        },
+        "default": false
+      },
+      {
         "key": "mapViewState",
         "label": "Map view state",
         "type": "custom",
@@ -313,7 +537,7 @@
     {
       "id": "places",
       "store": "durable",
-      "version": 1,
+      "version": 2,
       "title": "Places",
       "primaryKey": [
         "id"
@@ -345,6 +569,14 @@
         },
         "createdAt": {
           "type": "datetime"
+        },
+        "icon": {
+          "type": "text",
+          "nullable": true
+        },
+        "folder": {
+          "type": "text",
+          "nullable": true
         },
         "position": {
           "type": "integer",
@@ -571,6 +803,34 @@
         }
       ],
       "titleKey": "auto.cfd57fa1e034"
+    }
+  ],
+  "datasetMigrations": [
+    {
+      "id": "place-icons-folders-v2",
+      "store": "durable",
+      "fromVersion": 1,
+      "toVersion": 2,
+      "steps": [
+        {
+          "operation": "add-column",
+          "dataset": "places",
+          "column": "icon",
+          "definition": {
+            "type": "text",
+            "nullable": true
+          }
+        },
+        {
+          "operation": "add-column",
+          "dataset": "places",
+          "column": "folder",
+          "definition": {
+            "type": "text",
+            "nullable": true
+          }
+        }
+      ]
     }
   ],
   "locales": {

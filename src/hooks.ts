@@ -10,6 +10,7 @@ const EMPTY: MapSnapshot = {
   pins: [],
   pinSources: [],
   sourcePins: [],
+  sourcePinList: [],
   sourcePinCounts: {},
   plannerWaypoints: [],
   plannerMode: 'driving',

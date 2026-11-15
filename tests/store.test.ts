@@ -383,6 +383,8 @@ describe('MapStore', () => {
         setPlaces() {},
         setPins() {},
         setSourcePins() {},
+        setPlaceMarkers() {},
+        setSavedRoutes() {},
         setWaypoints() {},
         setRoute() {},
         setUnits() {},
@@ -530,6 +532,8 @@ function recordingEngine(): Recorder {
     setPlaces() {},
     setPins() {},
     setSourcePins() {},
+    setPlaceMarkers() {},
+    setSavedRoutes() {},
     setWaypoints() {},
     setRoute() {},
     setUnits() {},
@@ -575,6 +579,17 @@ describe('MapStore — reload persistence', () => {
   afterEach(() => {
     disposeStore(store)
     vi.unstubAllGlobals()
+  })
+
+  it('draws the saved favourite places as pins as soon as a map attaches', async () => {
+    const s = seeded()
+    store = s.store
+    await store.load()
+    const rec = recordingEngine()
+    const pins: string[][] = []
+    ;(rec.engine as unknown as { setPlaceMarkers: (places: { id: string }[]) => void }).setPlaceMarkers = places => { pins.push(places.map(place => place.id)) }
+    store.attachMap(rec.engine)
+    expect(pins.at(-1)).toEqual([seededPlace.id])
   })
 
   it('restores the camera with bearing and pitch, and the saved basemap', async () => {
@@ -1163,6 +1178,8 @@ describe('MapStore — live location', () => {
       setPlaces() {},
       setPins() {},
       setSourcePins() {},
+      setPlaceMarkers() {},
+      setSavedRoutes() {},
       setWaypoints() {},
       setRoute() {},
       setUnits() {},

@@ -1,3 +1,4 @@
+import { DEFAULT_PIN_ICONS } from '../src/pinIconDefaults'
 import { assertCommandOutput, commandContracts } from './commandContracts'
 import de from '../locales/de.json'
 import config from '../config.json'
@@ -81,7 +82,8 @@ describe('Map package backend', () => {
     expect(storage.open).toHaveBeenCalledWith({ area: 'metadata', path: 'assets/icons/map-icon', kind: 'directory', mode: 'write' })
     expect(config.permissions.storage.metadata).toEqual(['assets/icons/map-icon'])
     expect(files.get('pin.svg')).toBe(custom)
-    expect(files.size).toBe(9)
+    // Every default glyph is seeded beside the custom one; the saved pin keeps its own artwork.
+    expect(files.size).toBe(Object.keys(DEFAULT_PIN_ICONS).length + 1)
     expect(result).toMatchObject({ icons: { pin: custom, fern: custom }, failed: [] })
     expect(storage.close).toHaveBeenCalledWith('icons')
     mock.dispose()

@@ -377,7 +377,7 @@ const IconPicker: FC<{ icon: string; color: string; borderColor: string; onChang
   )
 }
 
-const PinIconGrid: FC<{ selected: string; onSelect: (id: string) => void }> = ({ selected, onSelect }) => {
+export const PinIconGrid: FC<{ selected: string; onSelect: (id: string) => void }> = ({ selected, onSelect }) => {
   const { icons, error } = useMapIcons()
   const [query, setQuery] = React.useState('')
   const label = (id: string): string => {

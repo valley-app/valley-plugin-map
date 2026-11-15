@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DataRecord } from '@valley/plugin-sdk/types'
@@ -103,6 +103,21 @@ async function pickAddress(): Promise<void> {
   })
 }
 
+/** Open a row's ⋯ menu and run one of its items (searched through submenus). */
+async function chooseFromMenu(mock: Mounted['mock'], button: HTMLElement, id: string): Promise<void> {
+  await act(async () => { fireEvent.click(button) })
+  const find = (items: { id?: string; submenu?: unknown[]; onSelect?: () => unknown }[]): { onSelect?: () => unknown } | undefined => {
+    for (const item of items) {
+      if (item.id === id) return item
+      const nested = item.submenu ? find(item.submenu as never) : undefined
+      if (nested) return nested
+    }
+  }
+  const item = find(mock.menus.at(-1) as never)
+  if (!item?.onSelect) throw new Error(`no menu item ${id}`)
+  await act(async () => { await item.onSelect!() })
+}
+
 describe('Favourite places: add and edit by hand', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -152,7 +167,10 @@ describe('Favourite places: add and edit by hand', () => {
     try {
       const add = screen.getByRole('button', { name: 'Add a place' })
       expect(add).toBeVisible()
-      expect(getComputedStyle(add).opacity).toBe('0.7')
+      // A Files-style toolbar button: always shown, never the hover-only row action.
+      expect(add).toHaveClass('panel-tool-btn')
+      expect(add).not.toHaveClass('map-row-action')
+      expect(getComputedStyle(add).opacity).not.toBe('0')
       await act(async () => fireEvent.click(add))
       expect(screen.getByLabelText('Name this place')).toBeInTheDocument()
       expect(add).toBeVisible()
@@ -240,9 +258,7 @@ describe('Favourite places: add and edit by hand', () => {
     const { mock, store, dispose } = await renderPanel([APPLE_PARK])
     expect(store.getSnapshot().places[0].note).toBeUndefined()
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
-    })
+    await chooseFromMenu(mock, screen.getByRole('button', { name: 'More actions' }), 'edit')
     await act(async () => fireEvent.change(screen.getByLabelText('Linked document (optional)'), {
       target: { value: 'Apple/The Product Line Cut.md' }
     }))
@@ -264,9 +280,7 @@ describe('Favourite places: add and edit by hand', () => {
   it('makes an edit revertible, like every other place write', async () => {
     const { mock, dispose } = await renderPanel([APPLE_PARK])
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Edit place' }))
-    })
+    await chooseFromMenu(mock, screen.getByRole('button', { name: 'More actions' }), 'edit')
     await act(async () => fireEvent.change(screen.getByLabelText('Name this place'), { target: { value: 'Infinite Loop' } }))
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -295,6 +309,139 @@ describe('Favourite places: add and edit by hand', () => {
 
     expect(storedPlaces(mock)).toHaveLength(0)
     expect(screen.queryByLabelText('Name this place')).toBeNull()
+    dispose()
+  })
+
+  it('files places in folders with one subfolder level and keeps the places when a folder is deleted', async () => {
+    const { mock, dispose } = await renderPanel([APPLE_PARK])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add folder' })) })
+    const name = await screen.findByLabelText('Folder name')
+    await act(async () => {
+      fireEvent.change(name, { target: { value: 'Trips' } })
+      fireEvent.keyDown(name, { key: 'Enter' })
+      fireEvent.blur(name)
+    })
+    await waitFor(() => expect(screen.getByText('Trips')).toBeTruthy())
+    const folders = (): { id: string; name: string; parent?: string }[] => mock.api.settings.get().placeFolders as never
+    expect(folders()).toEqual([{ id: expect.stringMatching(/^folder-[0-9a-f]{12}$/), name: 'Trips' }])
+
+    await chooseFromMenu(mock, screen.getAllByRole('button', { name: 'More actions' })[0], 'subfolder')
+    const sub = await screen.findByLabelText('Folder name')
+    await act(async () => { fireEvent.blur(sub) })
+    await waitFor(() => expect(folders()).toHaveLength(2))
+    expect(folders()[1].parent).toBe(folders()[0].id)
+    // A subfolder's menu offers no further subfolder.
+    await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'More actions' })[1]) })
+    expect((mock.menus.at(-1) ?? []).map(item => item.id)).toEqual(['icon', 'color', 'rename', undefined, 'delete'])
+
+    await act(async () => {
+      await mock.api.data.dataset('places').update({ id: 'apple-park' }, { folder: folders()[1].id })
+    })
+    await chooseFromMenu(mock, screen.getAllByRole('button', { name: 'More actions' })[1], 'delete')
+    await waitFor(() => expect(folders()).toHaveLength(1))
+    expect(storedPlaces(mock)).toHaveLength(1)
+    dispose()
+  })
+
+  it('focuses the search field when the Search tab is clicked', async () => {
+    const { dispose } = await renderPanel()
+    await act(async () => { fireEvent.click(screen.getByRole('tab', { name: 'Search' })) })
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByPlaceholderText('Search the map…')))
+    dispose()
+  })
+
+  it('keeps place actions in one menu and edits the colour with the palette field', async () => {
+    const { mock, dispose } = await renderPanel([{ ...APPLE_PARK, color: 'palette:teal' }])
+    const more = screen.getByRole('button', { name: 'More actions' })
+    expect(screen.queryByRole('button', { name: 'Edit place' })).toBeNull()
+    await act(async () => { fireEvent.click(more) })
+    const items = mock.menus.at(-1) ?? []
+    expect(items.map(item => item.id)).toEqual(['edit', 'rename', 'icon', 'move', undefined, 'focus', undefined, 'delete'])
+    expect(items.filter(item => item.id).every(item => item.icon)).toBe(true)
+
+    await chooseFromMenu(mock, more, 'edit')
+    const dialog = screen.getByRole('dialog', { name: 'Edit place' })
+    expect(dialog.querySelector('[data-color="palette:teal"]')).toBeTruthy()
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Cancel' })) })
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await chooseFromMenu(mock, more, 'rename')
+    const field = screen.getByDisplayValue('Apple Park, Cupertino')
+    await act(async () => {
+      fireEvent.change(field, { target: { value: 'Infinite Loop' } })
+      fireEvent.blur(field)
+    })
+    await waitFor(() => expect(storedPlaces(mock)[0]).toMatchObject({ name: 'Infinite Loop' }))
+    dispose()
+  })
+
+  it('moves a place to a folder or subfolder from the edit modal', async () => {
+    const { mock, dispose } = await renderPanel([APPLE_PARK])
+    await act(async () => {
+      await mock.api.settings.set('placeFolders', [{ id: 'folder-trips', name: 'Trips' }, { id: 'folder-alps', name: 'Alps', parent: 'folder-trips' }])
+    })
+    await chooseFromMenu(mock, screen.getAllByRole('button', { name: 'More actions' }).at(-1)!, 'edit')
+    const dialog = screen.getByRole('dialog', { name: 'Edit place' })
+    const field = within(dialog).getByRole('combobox', { name: 'Move to folder' }) as HTMLSelectElement
+    expect([...field.options].map(option => option.textContent)).toEqual(['Top level', 'Trips', 'Trips / Alps'])
+    await act(async () => { fireEvent.change(field, { target: { value: 'folder-alps' } }) })
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
+    await waitFor(() => expect(storedPlaces(mock)[0]).toMatchObject({ id: 'apple-park', folder: 'folder-alps' }))
+
+    await chooseFromMenu(mock, screen.getAllByRole('button', { name: 'More actions' }).at(-1)!, 'edit')
+    const again = screen.getByRole('dialog', { name: 'Edit place' })
+    expect((within(again).getByRole('combobox', { name: 'Move to folder' }) as HTMLSelectElement).value).toBe('folder-alps')
+    await act(async () => { fireEvent.change(within(again).getByRole('combobox', { name: 'Move to folder' }), { target: { value: 'top-level' } }) })
+    await act(async () => { fireEvent.click(within(again).getByRole('button', { name: 'Save' })) })
+    await waitFor(() => expect(storedPlaces(mock)[0].folder ?? null).toBeNull())
+    dispose()
+  })
+
+  it('has an eye on every folder and place that hides it on the map', async () => {
+    const { mock, dispose } = await renderPanel([APPLE_PARK])
+    await act(async () => {
+      await mock.api.settings.set('placeFolders', [{ id: 'folder-trips', name: 'Trips' }])
+    })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Hide “Trips” on the map' })) })
+    expect(mock.api.settings.get().hiddenPlaceFolders).toEqual(['folder-trips'])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Hide “Apple Park, Cupertino” on the map' })) })
+    expect(mock.api.settings.get().hiddenPlaces).toEqual(['apple-park'])
+    expect(screen.getByText('Apple Park, Cupertino').closest('.map-tree-row')).toHaveClass('is-hidden')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Show “Apple Park, Cupertino” on the map' })) })
+    expect(mock.api.settings.get().hiddenPlaces).toEqual([])
+    dispose()
+  })
+
+  it('heads the list with a 38px Favorites bar that folds every folder at once', async () => {
+    const { mock, dispose } = await renderPanel([APPLE_PARK])
+    const bar = screen.getByText('Favorites').closest('.map-places-bar') as HTMLElement
+    expect(bar.querySelector('.map-section-count')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Collapse all folders' })).toBeNull()
+    await act(async () => {
+      await mock.api.settings.set('placeFolders', [{ id: 'folder-trips', name: 'Trips' }, { id: 'folder-alps', name: 'Alps', parent: 'folder-trips' }])
+    })
+    expect(within(bar).getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual(['Collapse all folders', 'Hide all favorites on the map', 'Add folder', 'Add a place'])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Collapse all folders' })) })
+    expect(mock.api.settings.get().collapsedPlaceFolders).toEqual(['folder-trips', 'folder-alps'])
+    expect(screen.queryByText('Alps')).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Expand all folders' })) })
+    expect(mock.api.settings.get().collapsedPlaceFolders).toEqual([])
+    // Only the visible folders count: an open subfolder inside a folded folder still reads as all folded.
+    await act(async () => { await mock.api.settings.set('collapsedPlaceFolders', ['folder-trips']) })
+    expect(screen.getByRole('button', { name: 'Expand all folders' })).toBeInTheDocument()
+    dispose()
+  })
+
+  it('hides every favourite from the Favorites bar eye and keeps the rows\' own eyes', async () => {
+    const { mock, dispose } = await renderPanel([APPLE_PARK])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Hide all favorites on the map' })) })
+    expect(mock.api.settings.get().placesHidden).toBe(true)
+    expect(mock.api.settings.get().hiddenPlaces ?? []).toEqual([])
+    expect(screen.getByText('Apple Park, Cupertino').closest('.map-tree-row')).toHaveClass('is-hidden')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Show favorites on the map' })) })
+    expect(mock.api.settings.get().placesHidden).toBe(false)
+    expect(screen.getByText('Apple Park, Cupertino').closest('.map-tree-row')).not.toHaveClass('is-hidden')
     dispose()
   })
 })

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { React, api } from './runtime'
 import { MAP_SIDEBAR_TAB_V1, type MapSidebarTab } from './sidebarContract'
 import { uiText } from './localization'
+import { JourneyPanel, isPlannerSnapshot } from './JourneyPanel'
 
 export function orderedTabs(saved: unknown, available: readonly string[]): string[] {
   const order = Array.isArray(saved) ? saved.filter((value): value is string => typeof value === 'string') : []
@@ -19,7 +20,7 @@ export function useSidebarExtensions() {
   return providers.map(provider => ({ id: `extension:${provider.owner}:${provider.extension.id}` as const, provider }))
 }
 
-export function SidebarTabs({ tabs, active, onSelect }: { tabs: { id: string; label: string; icon: ReactNode }[]; active: string; onSelect(id: string): void }) {
+export function SidebarTabs({ tabs, active, onSelect, onTabClick }: { tabs: { id: string; label: string; icon: ReactNode }[]; active: string; onSelect(id: string): void; onTabClick?(id: string): void }) {
   const [saved, setSaved] = React.useState(() => api.settings.get().sidebarTabOrder)
   const [error, setError] = React.useState(false)
   const [over, setOver] = React.useState<string | null>(null)
@@ -47,7 +48,7 @@ export function SidebarTabs({ tabs, active, onSelect }: { tabs: { id: string; la
         const tab = tabs.find(tab => tab.id === id)!
         return <button key={id} className={`map-tab ${active === id ? 'active' : ''} ${over === id ? 'map-tab-drop' : ''}`}
           role="tab" aria-selected={active === id} aria-label={tab.label} title={`${tab.label} · ${uiText('sidebar.reorder')}`}
-          draggable onClick={() => onSelect(id)}
+          draggable onClick={() => { onSelect(id); onTabClick?.(id) }}
           onDragStart={event => { dragging.current = id; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', id) }}
           onDragOver={event => { if (!dragging.current) return; event.preventDefault(); setOver(id) }}
           onDrop={event => { event.preventDefault(); if (dragging.current) move(dragging.current, index); dragging.current = null; setOver(null) }}
@@ -87,13 +88,19 @@ export function ExtensionPanel({ extension }: { extension: MapSidebarTab }) {
   }, [extension])
   const fieldsKey = JSON.stringify(snapshot?.fields ?? [])
   React.useEffect(() => { setValues(Object.fromEntries((JSON.parse(fieldsKey) as { id: string; value: string }[]).map(field => [field.id, field.value]))) }, [fieldsKey])
-  const run = async (action: string): Promise<void> => {
+  const run = async (action: string, extra?: Record<string, string>): Promise<void> => {
     setPending(true); setError(false)
-    try { await extension.run(action, values) }
+    try { await extension.run(action, extra ?? values) }
     catch { setError(true) }
     finally { setPending(false) }
   }
   if (!snapshot) return null
+  if (isPlannerSnapshot(snapshot)) {
+    return <div ref={root} className="map-extension-panel">
+      <JourneyPanel extension={extension} snapshot={snapshot} pending={pending} run={(action, extra) => { void run(action, extra) }} />
+      {error && <p role="alert" className="map-empty">{uiText('sidebar.unavailable')}</p>}
+    </div>
+  }
   return <div ref={root} className="map-extension-panel" aria-busy={snapshot.busy || pending}>
     <form className="map-extension-form" onSubmit={event => { event.preventDefault(); const first = snapshot.actions.find(action => !action.disabled); if (first) void run(first.id) }}>
       {snapshot.fields.map(field => <label key={field.id}>{field.label}<span className="search-field-row"><span className="search-field"><input value={values[field.id] ?? field.value}

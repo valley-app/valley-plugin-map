@@ -709,12 +709,13 @@ it('reorders sidebar sources without losing hidden or empty definitions', async 
   const definitions = [CONTACTS_SOURCE, { ...CONTACTS_SOURCE, id: 'hidden', title: 'Hidden', hidden: true }, { ...CONTACTS_SOURCE, id: 'second', title: 'Second' }, { ...CONTACTS_SOURCE, id: 'empty', title: 'Empty', matchValue: 'absent' }]
   const { mock, store, dispose } = await renderPins({ datasets: sourceDatasets(definitions), indexEntries: [contact('Fern habitat', '47.1, 8.1', { frontmatter: { type: 'contact', lat: 47.1, lng: 8.1 } })] }, false)
   await act(async () => { store.setPanelTab('pins'); render(<Panel />) })
-  await waitFor(() => expect(document.querySelectorAll('.map-sidebar-row')).toHaveLength(2))
-  await act(async () => fireEvent.keyDown(document.querySelector('.map-sidebar-row .map-source-grip')!, { key: 'ArrowDown' }))
+  await waitFor(() => expect(document.querySelectorAll('.map-pin-tree .map-folder-row')).toHaveLength(2))
+  await act(async () => fireEvent.keyDown(document.querySelector('.map-pin-tree .map-folder-row')!, { key: 'ArrowDown', altKey: true }))
   await waitFor(() => expect(storedSources(mock).map(source => source.id)).toEqual(['second', 'hidden', CONTACTS_SOURCE.id, 'empty']))
-  fireEvent.click(document.querySelector('.map-sidebar-row .map-source-disclosure')!)
-  expect(document.querySelector('.map-sidebar-details')).not.toBeNull()
-  await act(async () => fireEvent.click(document.querySelector('.map-sidebar-sources .map-sources-header input')!))
+  // A source opens like a folder and lists the notes it pins.
+  await act(async () => fireEvent.click(document.querySelectorAll('.map-pin-tree .map-folder-row')[1]))
+  expect(screen.getByText('Fern habitat')).toBeInTheDocument()
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Hide all pins on the map' })))
   await waitFor(() => expect(storedSources(mock).find(source => source.id === 'second')!.visible).toBe(false))
   expect(storedSources(mock).find(source => source.id === 'hidden')!.hidden).toBe(true)
   dispose()
