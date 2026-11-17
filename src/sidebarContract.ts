@@ -20,6 +20,10 @@ export type MapSidebarJourney = {
   stops?: number[]
   /** The provider's occupancy forecast, 1 (low) to 3 (high), per class. Only when the provider supplies it. */
   occupancy?: { first?: number; second?: number }
+  /** A reported delay (`+1′`), drawn in its own column on a departure board. */
+  delay?: string
+  /** The departure leaves from another platform than planned. */
+  platformChanged?: boolean
 }
 export type MapSidebarCall = { time: MapSidebarTime; name: string; platform?: string }
 export type MapSidebarLeg =
@@ -33,15 +37,18 @@ export type MapSidebarTile = {
   place?: string
   /** Mosaic size: one cell, two cells side by side, or two by two. */
   size?: 'small' | 'wide' | 'large'
+  /** An explicit place on a four-column grid (1-based column and row, span in cells); placed tiles may leave empty cells and win over `size`. */
+  column?: number; row?: number; columns?: number; rows?: number
 }
 /** The travel date and time of a search. `run(action, { date, time, arrival })` sets it, `run(now)` resets it. */
 export type MapSidebarWhen = {
   action: string; now?: string
   /** `YYYY-MM-DD`, `HH:MM` and whether `time` is the arrival. */
   date: string; time: string; arrival: boolean
-  /** The date as shown (`So. 15.11.`) and the days the picker offers. */
-  label: string; days: { value: string; label: string }[]
-  text: { title: string; departure: string; arrival: string; apply: string; now: string; departureShort: string; arrivalShort: string; date: string; close: string }
+  /** The date as shown (`So. 15.11.`) and the days a plugin-drawn picker offered; hosts with date fields ignore them. */
+  label?: string; days?: { value: string; label: string }[]
+  /** Without `departure` and `arrival` texts the host offers no departure/arrival choice. */
+  text: { departure?: string; arrival?: string; now: string; date: string; time?: string; title?: string; apply?: string; departureShort?: string; arrivalShort?: string; close?: string }
 }
 
 /**
@@ -64,7 +71,8 @@ export interface MapSidebarSnapshot {
   busy?: boolean
   segments?: { id: string; label: string; disabled?: boolean }[]
   segment?: string
-  route?: { stops: MapSidebarRouteStop[]; submit?: { action: string; label: string; disabled?: boolean }; swap?: string; caption?: string; when?: MapSidebarWhen }
+  /** `reorder`: stops can be dragged; `run('<reorder>:<stopId>:<index>')`, the index counted over the stops that are not an empty via row. */
+  route?: { stops: MapSidebarRouteStop[]; submit?: { action: string; label: string; disabled?: boolean }; swap?: string; caption?: string; when?: MapSidebarWhen; reorder?: string }
   rowsTitle?: string
   journeys?: MapSidebarJourney[]
   journey?: MapSidebarJourneyDetail
@@ -79,6 +87,8 @@ export interface MapSidebarSnapshot {
    * with `:<viaId>` added when the pointer rested on a third tile on the way.
    */
   tileSwipe?: string
+  /** The glyph of the result rows (station suggestions), drawn in the look's icon colour; the host's pin otherwise. */
+  rowIcon?: { viewBox: string; path: string; fillRule?: 'evenodd' | 'nonzero' }
 }
 
 export interface MapSidebarTab {

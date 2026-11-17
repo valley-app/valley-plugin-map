@@ -1,7 +1,7 @@
 import { React, api } from './runtime'
 import type { DragEvent, FC, MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { UiMenuItem, UiMenuTarget } from '@valley/plugin-sdk'
-import { paletteCssValue, paletteRef, paletteRefId, runtimePaletteSnapshot } from '@valley/plugin-sdk/palette'
+import { paletteCssValue } from '@valley/plugin-sdk/palette'
 import { useMap } from './hooks'
 import { formatLatLng } from './format'
 import type { LngLat, Place, PlaceFolder } from './types'
@@ -231,34 +231,6 @@ export const PlaceEditor: FC<{ place?: Place; folders: readonly PlaceFolder[]; o
   )
 }
 
-/** The palette as a swatch grid, one row per family, with "no colour" first. Picking stores `palette:<id>`. */
-const PaletteGrid: FC<{ selected: string; onSelect: (value: string) => void }> = ({ selected, onSelect }) => {
-  const palette = runtimePaletteSnapshot()
-  const current = paletteRefId(selected)
-  return (
-    <div className="map-palette">
-      <button type="button" className={`map-palette-none${selected ? '' : ' active'}`} aria-pressed={!selected} onClick={() => onSelect('')}>
-        <span className="map-palette-swatch is-unset" />{uiText('places.color.none')}
-      </button>
-      {palette.families.map(family => {
-        const colors = palette.colors.filter(color => color.familyId === family.id)
-        return colors.length ? (
-          <div key={family.id} className="map-palette-family">
-            <span className="map-palette-label">{family.name}</span>
-            <div className="map-palette-row">
-              {colors.map(color => (
-                <button key={color.id} type="button" className={`map-palette-swatch${current === color.id ? ' active' : ''}`}
-                  style={{ background: paletteCssValue(paletteRef(color.id)) }} title={color.name} aria-label={color.name}
-                  aria-pressed={current === color.id} onClick={() => onSelect(paletteRef(color.id))} />
-              ))}
-            </div>
-          </div>
-        ) : null
-      })}
-    </div>
-  )
-}
-
 /** Opens the palette under `anchor`; `''` clears the colour. */
 export function pickColor(anchor: HTMLElement, selected: string, onSelect: (value: string) => void): void {
   // Opened from a menu item: wait until the menu has closed and handed focus back, or the
@@ -267,8 +239,7 @@ export function pickColor(anchor: HTMLElement, selected: string, onSelect: (valu
 }
 
 function openPalette(anchor: HTMLElement, selected: string, onSelect: (value: string) => void): void {
-  void api.ui.openPopover(ctx => <PaletteGrid selected={selected} onSelect={value => { onSelect(value); ctx.close() }} />,
-    { anchor }, { className: 'map-palette-popover', ariaLabel: uiText('surface.color') })
+  void api.ui.pickColor({ value: selected, clearable: true, ariaLabel: uiText('surface.color') }, { anchor }).then(value => { if (value !== null && value !== selected) onSelect(value) })
 }
 
 /** The folder row's glyph, the anchor of its icon and colour popovers. */

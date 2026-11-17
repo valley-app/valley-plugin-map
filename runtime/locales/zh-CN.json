@@ -491,7 +491,8 @@
   "pins.collapseAll": "折叠所有来源",
   "pins.add": "添加图钉来源",
   "pins.row.hint": "单击显示其笔记 · 双击在地图上显示 · 拖动或 Alt+↑/↓ 重新排序",
-  "journey.back": "连接",
+  "journey.platformChanged": "站台变更",
+  "journey.back": "返回连接列表",
   "journey.swap": "交换起点和终点",
   "journey.soon": "即将推出",
   "places.folders.edit": "编辑文件夹",
@@ -501,6 +502,5 @@
   "routes.add": "规划新路线",
   "routes.folders.deleteHint": "其中的路线上移一级",
   "routes.menu.show": "在地图上显示",
-  "routes.name": "路线名称",
-  "places.color.none": "无颜色"
+  "routes.name": "路线名称"
 }

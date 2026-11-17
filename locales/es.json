@@ -491,7 +491,8 @@
   "pins.collapseAll": "Contraer todas las fuentes",
   "pins.add": "Añadir fuente de pines",
   "pins.row.hint": "Clic para ver sus notas · doble clic para verlas en el mapa · arrastra o Alt+↑/↓ para reordenar",
-  "journey.back": "Conexiones",
+  "journey.platformChanged": "Cambio de andén",
+  "journey.back": "Volver a las conexiones",
   "journey.swap": "Intercambiar origen y destino",
   "journey.soon": "Próximamente",
   "places.folders.edit": "Editar carpeta",
@@ -501,6 +502,5 @@
   "routes.add": "Planificar una ruta nueva",
   "routes.folders.deleteHint": "Sus rutas suben un nivel",
   "routes.menu.show": "Mostrar en el mapa",
-  "routes.name": "Nombre de la ruta",
-  "places.color.none": "Sin color"
+  "routes.name": "Nombre de la ruta"
 }

@@ -1,8 +1,8 @@
-import { React } from './runtime'
+import { React, api } from './runtime'
 import type { FC, ReactElement } from 'react'
 import type { MapSidebarBadge, MapSidebarJourney, MapSidebarJourneyDetail, MapSidebarLeg, MapSidebarRouteStop, MapSidebarSnapshot, MapSidebarTab, MapSidebarTile, MapSidebarTime, MapSidebarWhen } from './sidebarContract'
 import { uiText } from './localization'
-import { ChevronLeft, Crosshair, MapPin, SwapVertical, Walk, X } from './icons'
+import { ChevronLeft, Crosshair, MapPin, SwapVertical, Walk } from './icons'
 
 /** Does a sidebar tab use the journey-planner parts of the contract? */
 export function isPlannerSnapshot(snapshot: MapSidebarSnapshot): boolean {
@@ -28,10 +28,10 @@ const Badge: FC<{ badge: MapSidebarBadge; sbb?: boolean }> = ({ badge, sbb }) =>
   if (!sbb) return <span className={`map-line-badge is-${badge.kind}`}>{badge.text}</span>
   // SBB draws long-distance categories as an italic tag in its red badge (`IR` then `36`).
   const split = badge.kind === 'train' && badge.category && badge.number
-  return <span className="map-line" aria-label={badge.text}>
+  return <span className="map-line" aria-label={badge.text} title={badge.text}>
     <Pictogram kind={badge.kind} />
     <span className={`map-line-badge is-${badge.kind}`} aria-hidden="true">
-      {split ? <><span className="map-line-cat">{badge.category}</span><span>{badge.number}</span></> : badge.text}
+      {split ? <><span className="map-line-cat">{badge.category}</span><span className="map-line-text">{badge.number}</span></> : <span className="map-line-text">{badge.text}</span>}
     </span>
   </span>
 }
@@ -80,18 +80,21 @@ const JourneyCard: FC<{ journey: MapSidebarJourney; run: (action: string) => voi
         <span className="map-journey-duration">{journey.duration}</span>
       </span>
     </>
-    : <span className="map-journey-board">
-      <Time time={journey.departure} strong />
-      <Badge badge={journey.badge} sbb={sbb} />
-      <span className="map-journey-direction">{journey.direction}</span>
-      <span className="map-journey-board-end">
-        {journey.note && <span className={journey.warn ? 'map-journey-warn' : ''}>{journey.note}</span>}
-        <span>{journey.platform}</span>
+    // A board entry is one line of columns shared by every row: time, line, destination, delay, platform.
+    // A late entry shows only its real time, in red; the delay keeps its own column.
+    : <>
+      <span className={`map-board-time${journey.departure.late && journey.departure.expected ? ' is-late' : ''}`}>{journey.departure.late && journey.departure.expected ? journey.departure.expected : journey.departure.time}</span>
+      <span className="map-board-line"><Badge badge={journey.badge} sbb={sbb} /></span>
+      <span className="map-board-dest">{journey.direction}</span>
+      <span className="map-board-end">
+        <span className="map-board-delay">{journey.delay ?? (journey.warn ? journey.note : '')}</span>
+        <span className={`map-board-platform${journey.platformChanged ? ' is-changed' : ''}`} title={journey.platformChanged ? uiText('journey.platformChanged') : undefined}>{journey.platform}</span>
       </span>
-    </span>
+    </>
+  const kind = journey.arrival ? '' : ' is-board'
   return journey.action
-    ? <button type="button" className="map-journey-card" disabled={disabled} onClick={() => run(journey.action!)}>{body}</button>
-    : <div className="map-journey-card is-static">{body}</div>
+    ? <button type="button" className={`map-journey-card${kind}`} disabled={disabled} onClick={() => run(journey.action!)}>{body}</button>
+    : <div className={`map-journey-card is-static${kind}`}>{body}</div>
 }
 
 const Leg: FC<{ leg: MapSidebarLeg; sbb: boolean }> = ({ leg, sbb }) => leg.kind === 'walk'
@@ -116,11 +119,9 @@ const Leg: FC<{ leg: MapSidebarLeg; sbb: boolean }> = ({ leg, sbb }) => leg.kind
     </div>
   </div>
 
-const JourneyDetail: FC<{ detail: MapSidebarJourneyDetail; run: (action: string) => void; sbb: boolean }> = ({ detail, run, sbb }) => (
+const JourneyDetail: FC<{ detail: MapSidebarJourneyDetail; sbb: boolean }> = ({ detail, sbb }) => (
   <div className="map-journey-detail">
-    <button type="button" className="map-journey-back" onClick={() => run(detail.back)}><ChevronLeft />{uiText('journey.back')}</button>
     <div className="map-journey-summary">
-      <span className="map-journey-title">{detail.title}</span>
       <span className="map-journey-times"><Time time={detail.departure} strong /><Track changes={detail.legs.filter(leg => leg.kind === 'ride').length - 1} stops={detail.stops} /><Time time={detail.arrival} strong /></span>
       <span className="map-journey-meta"><span>{detail.summary}</span></span>
     </div>
@@ -131,55 +132,30 @@ const JourneyDetail: FC<{ detail: MapSidebarJourneyDetail; run: (action: string)
 const TileIcon: FC<{ icon: MapSidebarTile['icon'] }> = ({ icon }) => icon === 'location' ? <Crosshair />
   : icon === 'origin' ? <span className="map-route-ring" /> : icon === 'destination' ? <span className="map-route-ring is-target" /> : <MapPin />
 
-const pad = (value: number): string => String(value).padStart(2, '0')
-
 /**
- * The travel date and time sheet: departure or arrival, then day, hour and
- * minute columns. Drawn by the plugin, since native date inputs are not allowed.
+ * The travel date and time inline: Valley's date and time fields, departure or
+ * arrival, and Now. A change applies at once. Kept in one place so a shared
+ * picker can replace it.
  */
-const WhenSheet: FC<{ when: MapSidebarWhen; close: () => void; apply: (values: Record<string, string>) => void; now?: () => void }> = ({ when, close, apply, now }) => {
-  const [arrival, setArrival] = React.useState(when.arrival)
-  const [date, setDate] = React.useState(when.date)
-  const [hour, setHour] = React.useState(Number(when.time.slice(0, 2)))
-  const [minute, setMinute] = React.useState(Number(when.time.slice(3, 5)))
-  const sheet = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    // Open with the chosen values in the middle of each column, like the app's wheels.
-    sheet.current?.querySelectorAll<HTMLElement>('.map-when-column').forEach(column => {
-      const chosen = column.querySelector<HTMLElement>('.active')
-      if (!chosen) return
-      const offset = chosen.getBoundingClientRect().top - column.getBoundingClientRect().top + column.scrollTop
-      column.scrollTop = offset - column.clientHeight / 2 + chosen.offsetHeight / 2
-    })
-    sheet.current?.querySelector<HTMLElement>('.map-when-mode button.active')?.focus()
-  }, [])
-  const column = (label: string, items: { value: string; label: string; active: boolean; pick: () => void }[]) => (
-    <div className="map-when-column" role="listbox" aria-label={label}>
-      {items.map(item => <button key={item.value} type="button" role="option" aria-selected={item.active} className={item.active ? 'active' : ''} onClick={item.pick}>{item.label}</button>)}
-    </div>
-  )
+const WhenFields: FC<{ when: MapSidebarWhen; busy: boolean; act: (action: string, values?: Record<string, string>) => void }> = ({ when, busy, act }) => {
+  const { DateField, TimeField } = api.ui.settings
+  const set = (next: Partial<Pick<MapSidebarWhen, 'date' | 'time' | 'arrival'>>): void => {
+    const value = { date: when.date, time: when.time, arrival: when.arrival, ...next }
+    if (value.date && value.time) act(when.action, { date: value.date, time: value.time, arrival: value.arrival ? '1' : '0' })
+  }
   return (
-    <div className="map-when-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}
-      onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); close() } }}>
-      <div ref={sheet} className="map-when-sheet" role="dialog" aria-label={when.text.title}>
-        <div className="map-when-head">
-          <span className="map-when-title">{when.text.title}</span>
-          <button type="button" className="map-when-close" aria-label={when.text.close} title={when.text.close} onClick={close}><X /></button>
-        </div>
-        <div className="map-when-mode" role="radiogroup">
-          <button type="button" role="radio" aria-checked={!arrival} className={!arrival ? 'active' : ''} onClick={() => setArrival(false)}>{when.text.departure}</button>
-          <button type="button" role="radio" aria-checked={arrival} className={arrival ? 'active' : ''} onClick={() => setArrival(true)}>{when.text.arrival}</button>
-        </div>
-        <div className="map-when-wheels">
-          {column(when.text.date, when.days.map(day => ({ value: day.value, label: day.label, active: day.value === date, pick: () => setDate(day.value) })))}
-          {column('h', Array.from({ length: 24 }, (_, value) => ({ value: String(value), label: pad(value), active: value === hour, pick: () => setHour(value) })))}
-          {column('min', Array.from({ length: 60 }, (_, value) => ({ value: String(value), label: pad(value), active: value === minute, pick: () => setMinute(value) })))}
-        </div>
-        <div className="map-when-actions">
-          {now && <button type="button" className="map-when-now" onClick={now}>{when.text.now}</button>}
-          <button type="button" className="map-when-apply" onClick={() => apply({ date, time: `${pad(hour)}:${pad(minute)}`, arrival: arrival ? '1' : '0' })}>{when.text.apply}</button>
-        </div>
-      </div>
+    <div className="map-route-when">
+      <div className="map-route-when-field is-date"><DateField value={when.date} onChange={date => set({ date })} clearable={false} disabled={busy} ariaLabel={when.text.date} /></div>
+      <div className="map-route-when-field is-time"><TimeField value={when.time} onChange={time => set({ time })} clearable={false} disabled={busy} ariaLabel={when.text.time ?? when.text.date} /></div>
+      {when.text.departure && when.text.arrival && <div className="map-route-when-mode" role="radiogroup">
+        {[false, true].map(arrival => (
+          <button key={String(arrival)} type="button" role="radio" aria-checked={when.arrival === arrival} className={when.arrival === arrival ? 'active' : ''} disabled={busy}
+            onClick={() => { if (when.arrival !== arrival) set({ arrival }) }}>{arrival ? when.text.arrival : when.text.departure}</button>
+        ))}
+      </div>}
+      {when.now && <button type="button" className="panel-tool-btn map-route-when-now" disabled={busy} title={when.text.now} aria-label={when.text.now} onClick={() => act(when.now!)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4v4.5H8M12 7.5V12l3 2" /></svg>
+      </button>}
     </div>
   )
 }
@@ -265,6 +241,78 @@ const SwipeTrace: FC<{ line: SwipeLine }> = ({ line }) => {
 }
 
 /**
+ * Stops of the journey form reordered by dragging, when the provider offers
+ * `route.reorder`: `run('<reorder>:<stopId>:<index>')`, the index counted over
+ * the stops that hold a place (an empty via row is left out and never moves).
+ * The spine starts a drag at once; the rest of a row only after a few pixels
+ * and never inside a focused field, so clicking and selecting text still work.
+ */
+type StopDrag = { id: string; from: number; slot: number; x: number; y: number; line: number }
+function useStopReorder(stops: MapSidebarRouteStop[], reorder: string | undefined, act: (action: string) => void) {
+  const box = React.useRef<HTMLDivElement>(null)
+  const [drag, setDrag] = React.useState<StopDrag | null>(null)
+  const pending = React.useRef<{ id: string; x: number; y: number } | null>(null)
+  const places = stops.filter(stop => !(stop.role === 'via' && !stop.value))
+  const movable = (stop: MapSidebarRouteStop): boolean => Boolean(reorder) && places.includes(stop) && Boolean(stop.value || stop.location)
+  /** The gap the pointer is nearest to, and where its line sits in the list. */
+  const measure = (y: number): { slot: number; line: number } => {
+    const list = box.current!, top = list.getBoundingClientRect().top
+    const rows = places.map(stop => list.querySelector<HTMLElement>(`[data-stop-id="${stop.id.replace(/["\\]/g, '')}"]`)!.getBoundingClientRect())
+    const slot = rows.filter(rect => rect.top + rect.height / 2 < y).length
+    return { slot, line: (slot === 0 ? rows[0].top : rows[slot - 1].bottom) - top }
+  }
+  const begin = (id: string, x: number, y: number): void => {
+    const doc = box.current?.ownerDocument
+    ;(doc?.activeElement as HTMLElement | null)?.blur?.()
+    doc?.getSelection()?.removeAllRanges()
+    setDrag({ id, from: places.findIndex(stop => stop.id === id), x, y, ...measure(y) })
+  }
+  React.useEffect(() => {
+    const doc = box.current?.ownerDocument
+    if (!doc || (!drag && !pending.current)) return
+    const move = (event: PointerEvent): void => {
+      if (drag) { setDrag({ ...drag, x: event.clientX, y: event.clientY, ...measure(event.clientY) }); return }
+      const start = pending.current
+      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4) { pending.current = null; begin(start.id, event.clientX, event.clientY) }
+    }
+    const up = (): void => {
+      pending.current = null
+      if (!drag) { setPendingTick(tick => tick + 1); return }
+      setDrag(null)
+      const index = drag.slot > drag.from ? drag.slot - 1 : drag.slot
+      if (reorder && index !== drag.from) act(`${reorder}:${drag.id}:${index}`)
+    }
+    doc.addEventListener('pointermove', move)
+    doc.addEventListener('pointerup', up)
+    doc.addEventListener('pointercancel', up)
+    return () => { doc.removeEventListener('pointermove', move); doc.removeEventListener('pointerup', up); doc.removeEventListener('pointercancel', up) }
+  })
+  const [, setPendingTick] = React.useState(0)
+  return {
+    box, drag,
+    rowProps: (stop: MapSidebarRouteStop) => movable(stop) ? {
+      'data-stop-id': stop.id,
+      onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+        if (event.button !== 0) return
+        const target = event.target as HTMLElement
+        if (target.closest('.map-route-spine')) { event.preventDefault(); begin(stop.id, event.clientX, event.clientY); return }
+        if (target.tagName === 'INPUT' && target.ownerDocument.activeElement === target) return
+        pending.current = { id: stop.id, x: event.clientX, y: event.clientY }
+        setPendingTick(tick => tick + 1)
+      }
+    } : { 'data-stop-id': stop.id },
+    /** Alt+↑ / Alt+↓ in a stop field moves that stop one place. */
+    keyDown: (stop: MapSidebarRouteStop, event: React.KeyboardEvent<HTMLInputElement>): boolean => {
+      if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') || !movable(stop)) return false
+      const from = places.indexOf(stop), to = from + (event.key === 'ArrowUp' ? -1 : 1)
+      event.preventDefault()
+      if (to >= 0 && to < places.length) act(`${reorder}:${stop.id}:${to}`)
+      return true
+    }
+  }
+}
+
+/**
  * The journey planner a sidebar tab can ask for: segments, a Von/Via/Nach form
  * with a stop spine and travel date, station suggestions, connection cards with
  * day headers and earlier/later loading, an opened connection as a timeline, or
@@ -280,7 +328,6 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
   const sbb = snapshot.look === 'sbb'
   const stops = snapshot.route?.stops ?? []
   const [values, setValues] = React.useState<Record<string, string>>({})
-  const [picking, setPicking] = React.useState(false)
   const editing = React.useRef<string | null>(null)
   const inputs = React.useRef<Record<string, HTMLInputElement | null>>({})
   const typing = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -314,11 +361,22 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
     typing.current = setTimeout(() => { void extension.run(`input:${stop.id}`, next).catch(() => {}) }, 250)
   }
   const swipe = useTileSwipe(snapshot.tileSwipe, action => act(action))
+  const order = useStopReorder(stops, snapshot.route?.reorder, action => act(action))
+  // Station suggestions belong to the stop being typed in: while they show, nothing else is listed;
+  // when the field loses focus or Escape is pressed they step aside and the results come back.
+  const [stopFocus, setStopFocus] = React.useState(false)
+  const suggesting = snapshot.rows.length > 0 && (!snapshot.route || stopFocus)
+  const dragged = order.drag ? stops.find(stop => stop.id === order.drag!.id) : undefined
+  const ring = (stop: MapSidebarRouteStop) => stop.location ? <span className="map-route-ring is-location" /> : <span className={`map-route-ring${stop.role === 'destination' ? ' is-target' : stop.role === 'via' ? ' is-via' : ''}`} />
   const when = snapshot.route?.when
   const journeys = snapshot.journeys ?? []
 
   return (
-    <div className={`map-journey${sbb ? ' is-sbb' : ''}`} aria-busy={busy}>
+    <div className={`map-journey${sbb ? ' is-sbb' : ''}`} aria-busy={busy}
+      onKeyDown={(event) => { if (event.key === 'Escape' && snapshot.journey) { event.stopPropagation(); act(snapshot.journey.back) } }}>
+      {dragged && order.drag && <div className={`map-route-chip is-${dragged.role}`} style={{ left: order.drag.x - 14, top: order.drag.y - 15 }} aria-hidden="true">
+        {ring(dragged)}<span>{dragged.value}</span>
+      </div>}
       {snapshot.segments && (
         <div ref={segmentRow} className="map-journey-segments" role="tablist"
           onWheel={(event) => {
@@ -334,67 +392,70 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
           ))}
         </div>
       )}
+      {snapshot.journey && (
+        <div className={`map-journey-backbar${snapshot.segments ? ' is-under-segments' : ''}`}>
+          <button type="button" className="panel-tool-btn" title={uiText('journey.back')} aria-label={uiText('journey.back')} onClick={() => act(snapshot.journey!.back)}><ChevronLeft /></button>
+          <span className="map-journey-backbar-title">{snapshot.journey.title}</span>
+        </div>
+      )}
       <div className="map-journey-body">
         {snapshot.route && (
           <div className="map-route-card">
             <div className="map-route">
-              <div className="map-route-stops">
+              <div ref={order.box} className={`map-route-stops${order.drag ? ' is-reordering' : ''}`}>
                 {stops.map((stop, index) => (
-                  <label key={stop.id} className={`map-route-stop is-${stop.role}${stop.location ? ' is-location' : ''}`}>
+                  <label key={stop.id} className={`map-route-stop is-${stop.role}${stop.location ? ' is-location' : ''}${order.drag?.id === stop.id ? ' is-dragged' : ''}`} {...order.rowProps(stop)}>
                     <span className="map-route-spine" aria-hidden="true">
                       {index > 0 && <span className="map-route-link is-up" />}
-                      {stop.location ? <span className="map-route-ring is-location" /> : <span className={`map-route-ring${stop.role === 'destination' ? ' is-target' : stop.role === 'via' ? ' is-via' : ''}`} />}
+                      {ring(stop)}
                       {index < stops.length - 1 && <span className="map-route-link is-down" />}
                     </span>
                     <input ref={element => { inputs.current[stop.id] = element }} value={values[stop.id] ?? ''} placeholder={stop.placeholder} aria-label={stop.label} maxLength={200}
-                      onFocus={(event) => { editing.current = stop.id; if (stop.location) event.currentTarget.select(); run(`focus:${stop.id}`) }}
-                      onBlur={() => { if (editing.current === stop.id) editing.current = null }}
+                      onFocus={(event) => { editing.current = stop.id; setStopFocus(true); if (stop.location) event.currentTarget.select(); run(`focus:${stop.id}`) }}
+                      onBlur={() => { setStopFocus(false); if (editing.current === stop.id) editing.current = null }}
                       onChange={(event) => change(stop, event.target.value)}
-                      onKeyDown={(event) => { if (event.key === 'Enter' && snapshot.route?.submit && !snapshot.route.submit.disabled) { event.preventDefault(); act(snapshot.route.submit.action) } }} />
+                      onKeyDown={(event) => {
+                        if (order.keyDown(stop, event)) return
+                        if (event.key === 'Escape' && suggesting) { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); return }
+                        if (event.key === 'Enter' && snapshot.route?.submit && !snapshot.route.submit.disabled) { event.preventDefault(); act(snapshot.route.submit.action) }
+                      }} />
                   </label>
                 ))}
+                {order.drag && <span className="map-route-drop" style={{ top: order.drag.line }} aria-hidden="true" />}
               </div>
               {snapshot.route.swap && (
                 <button type="button" className="panel-tool-btn map-route-swap" title={uiText('journey.swap')} aria-label={uiText('journey.swap')} disabled={busy}
                   onClick={() => act(snapshot.route!.swap!)}><SwapVertical /></button>
               )}
             </div>
-            {when && (
-              <div className="map-route-when">
-                <button type="button" className="map-route-when-open" aria-haspopup="dialog" aria-label={`${when.text.date}: ${when.label} ${when.time} ${when.arrival ? when.text.arrivalShort : when.text.departureShort}`}
-                  disabled={busy} onClick={() => setPicking(true)}>
-                  <span>{when.label}</span><span className="map-route-when-sep" /><span>{when.time} {when.arrival ? when.text.arrivalShort : when.text.departureShort}</span>
-                </button>
-                {when.now && <button type="button" className="map-route-when-now" disabled={busy} title={when.text.now} aria-label={when.text.now} onClick={() => act(when.now!)}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4v4.5H8M12 7.5V12l3 2" /></svg>
-                </button>}
-              </div>
-            )}
+            {when && <WhenFields when={when} busy={busy} act={act} />}
           </div>
         )}
         {snapshot.route?.submit && (
           <button type="button" className="map-btn map-btn-primary map-route-submit" disabled={busy || snapshot.route.submit.disabled}
             onClick={() => act(snapshot.route!.submit!.action)}>{snapshot.route.submit.label}</button>
         )}
-        {snapshot.rows.length > 0 && (
+        {suggesting && (
           <div className="map-journey-list">
             {snapshot.rowsTitle && <span className="map-journey-caption">{snapshot.rowsTitle}</span>}
             {snapshot.rows.map(row => (
               <button key={row.id} type="button" className="map-row map-extension-row map-journey-suggestion" disabled={!row.action}
                 onMouseDown={(event) => event.preventDefault()} onClick={() => { if (row.action) act(row.action) }}>
-                <span className="map-row-icon"><MapPin /></span>
+                <span className="map-row-icon">{snapshot.rowIcon
+                  ? <svg viewBox={snapshot.rowIcon.viewBox} aria-hidden="true"><path d={snapshot.rowIcon.path} fillRule={snapshot.rowIcon.fillRule} fill="currentColor" /></svg>
+                  : <MapPin />}</span>
                 <span className="map-row-meta"><span className="map-row-title">{row.title}</span>{row.detail && <span className="map-row-sub">{row.detail}</span>}</span>
               </button>
             ))}
           </div>
         )}
         {(snapshot.error) && <p role="alert" className="map-journey-error">{snapshot.error}</p>}
-        {snapshot.journey
-          ? <JourneyDetail detail={snapshot.journey} run={run} sbb={sbb} />
+        {suggesting ? null : snapshot.journey
+          ? <JourneyDetail detail={snapshot.journey} sbb={sbb} />
           : <>
             {snapshot.route?.caption && <span className="map-journey-caption">{snapshot.route.caption}</span>}
             {journeys.length > 0 && (
-              <div className="map-journey-list">
+              <div className={`map-journey-list${journeys.every(journey => !journey.arrival) ? ' is-board' : ''}`}>
                 {snapshot.earlier && <button type="button" className="map-journey-more" disabled={busy} onClick={() => act(snapshot.earlier!.action)}>{snapshot.earlier.label}</button>}
                 {journeys.map((journey, index) => (
                   <React.Fragment key={journey.id}>
@@ -406,32 +467,35 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
               </div>
             )}
           </>}
-        {snapshot.tiles && (
-          <div className={`map-tiles${snapshot.tileSwipe ? ' is-swipe' : ''}${swipe.marks.line ? ' is-swiping' : ''}`} {...swipe.handlers}>
-            {snapshot.tiles.map((tile, index) => {
-              const size = tile.size ?? (tile.wide ? 'wide' : undefined)
-              const marked = swipe.marks.from === tile.id ? ' is-from' : swipe.marks.via === tile.id ? ' is-via' : swipe.marks.over === tile.id ? ' is-over' : ''
-              return (
-                <button key={tile.id} type="button" data-tile-id={tile.id}
-                  className={`map-tile${size ? ` is-${size}` : ''} is-tone-${index % 3}${tile.icon && tile.icon !== 'station' ? ' is-control' : ''}${tile.active ? ' active' : ''}${marked}`}
-                  aria-pressed={tile.active} disabled={busy} onClick={() => { if (!swipe.swallow()) run(tile.action) }}>
-                  {(!sbb || (tile.icon && tile.icon !== 'station')) && <span className="map-tile-icon"><TileIcon icon={tile.icon} /></span>}
-                  <span className="map-tile-text">
-                    {tile.place && <span className="map-tile-place">{tile.place}</span>}
-                    <span className="map-tile-label">{tile.label}</span>
-                    {tile.detail && <span className="map-tile-detail">{tile.detail}</span>}
-                  </span>
-                </button>
-              )
-            })}
+        {snapshot.tiles && (() => {
+          const tile = (entry: MapSidebarTile, index: number) => {
+            const size = entry.size ?? (entry.wide ? 'wide' : undefined)
+            const marked = swipe.marks.from === entry.id ? ' is-from' : swipe.marks.via === entry.id ? ' is-via' : swipe.marks.over === entry.id ? ' is-over' : ''
+            return (
+              <button key={entry.id} type="button" data-tile-id={entry.id}
+                style={entry.column && entry.row ? { gridColumn: `${entry.column} / span ${entry.columns ?? 1}`, gridRow: `${entry.row} / span ${entry.rows ?? 1}` } : undefined}
+                className={`map-tile${size ? ` is-${size}` : ''} is-tone-${index % 3}${entry.icon && entry.icon !== 'station' ? ' is-control' : ''}${entry.active ? ' active' : ''}${marked}`}
+                aria-pressed={entry.active} disabled={busy} onClick={() => { if (!swipe.swallow()) run(entry.action) }}>
+                {(!sbb || (entry.icon && entry.icon !== 'station')) && <span className="map-tile-icon"><TileIcon icon={entry.icon} /></span>}
+                <span className="map-tile-text">
+                  {entry.place && <span className="map-tile-place">{entry.place}</span>}
+                  <span className="map-tile-label">{entry.label}</span>
+                  {entry.detail && <span className="map-tile-detail">{entry.detail}</span>}
+                </span>
+              </button>
+            )
+          }
+          const tiles = snapshot.tiles!
+          return <div className="map-tiles-area" {...swipe.handlers}>
+            <div className={`map-tiles${tiles.some(entry => entry.column && entry.row) ? ' is-placed' : ''}${snapshot.tileSwipe ? ' is-swipe' : ''}${swipe.marks.line ? ' is-swiping' : ''}`}>
+              {tiles.map((entry, index) => tile(entry, index))}
+            </div>
+            {snapshot.message && <p className="map-empty" role="status">{snapshot.message}</p>}
             {swipe.marks.line && <SwipeTrace line={swipe.marks.line} />}
           </div>
-        )}
-        {snapshot.message && <p className="map-empty" role="status">{snapshot.message}</p>}
+        })()}
+        {snapshot.message && !snapshot.tiles && !suggesting && <p className="map-empty" role="status">{snapshot.message}</p>}
       </div>
-      {picking && when && <WhenSheet when={when} close={() => setPicking(false)}
-        apply={(next) => { setPicking(false); act(when.action, next) }}
-        now={when.now ? () => { setPicking(false); act(when.now!) } : undefined} />}
     </div>
   )
 }

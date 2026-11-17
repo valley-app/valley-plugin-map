@@ -491,7 +491,8 @@
   "pins.collapseAll": "Alle Quellen zuklappen",
   "pins.add": "Pin-Quelle hinzufügen",
   "pins.row.hint": "Klicken zeigt die Notizen · Doppelklick zeigt sie auf der Karte · Ziehen oder Alt+↑/↓ ordnet um",
-  "journey.back": "Verbindungen",
+  "journey.platformChanged": "Gleisänderung",
+  "journey.back": "Zurück zu den Verbindungen",
   "journey.swap": "Start und Ziel tauschen",
   "journey.soon": "Kommt später",
   "places.folders.edit": "Ordner bearbeiten",
@@ -501,6 +502,5 @@
   "routes.add": "Neue Route planen",
   "routes.folders.deleteHint": "Die Routen rücken eine Ebene nach oben",
   "routes.menu.show": "Auf der Karte zeigen",
-  "routes.name": "Routenname",
-  "places.color.none": "Keine Farbe"
+  "routes.name": "Routenname"
 }

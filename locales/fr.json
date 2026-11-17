@@ -491,7 +491,8 @@
   "pins.collapseAll": "Replier toutes les sources",
   "pins.add": "Ajouter une source d’épingles",
   "pins.row.hint": "Cliquez pour voir ses notes · double-cliquez pour les voir sur la carte · glissez ou Alt+↑/↓ pour réordonner",
-  "journey.back": "Liaisons",
+  "journey.platformChanged": "Changement de voie",
+  "journey.back": "Retour aux liaisons",
   "journey.swap": "Inverser départ et arrivée",
   "journey.soon": "Bientôt",
   "places.folders.edit": "Modifier le dossier",
@@ -501,6 +502,5 @@
   "routes.add": "Planifier un nouvel itinéraire",
   "routes.folders.deleteHint": "Ses itinéraires remontent d’un niveau",
   "routes.menu.show": "Afficher sur la carte",
-  "routes.name": "Nom de l’itinéraire",
-  "places.color.none": "Aucune couleur"
+  "routes.name": "Nom de l’itinéraire"
 }

@@ -136,13 +136,11 @@ describe('Favourite routes tab', () => {
     const { mock, dispose } = await renderRoutes({ routeFolders: [{ id: 'folder-work', name: 'Work' }] })
     await chooseFromMenu(mock, moreOf('Work'), 'color')
     expect(document.querySelector('[role=dialog]')).toBeNull()
-    await waitFor(() => expect(mock.popovers.length).toBe(1))
-    const palette = render(<>{mock.popovers.at(-1)!.node}</>)
-    const swatch = palette.container.querySelector('.map-palette-swatch:not(.is-unset)') as HTMLElement
-    await act(async () => { fireEvent.click(swatch) })
+    await waitFor(() => expect(mock.pickers.length).toBe(1))
+    expect(mock.pickers[0]).toMatchObject({ kind: 'color', options: { value: '', clearable: true } })
+    await act(async () => { mock.pickers[0].resolve('palette:blue') })
     const color = (mock.api.settings.get().routeFolders as { color?: string }[])[0].color
-    expect(color).toMatch(/^palette:/)
-    palette.unmount()
+    expect(color).toBe('palette:blue')
 
     // Change icon is a submenu listing every icon, not a popover.
     await act(async () => { fireEvent.click(moreOf('Work')) })
@@ -158,9 +156,9 @@ describe('Favourite routes tab', () => {
     expect(mock.api.settings.get().routeFolders).toEqual([{ id: 'folder-work', name: 'Work', icon: 'mountain', color }])
 
     await chooseFromMenu(mock, moreOf('Work'), 'color')
-    await waitFor(() => expect(mock.popovers.length).toBe(2))
-    const again = render(<>{mock.popovers.at(-1)!.node}</>)
-    await act(async () => { fireEvent.click(within(again.container).getByRole('button', { name: 'No color' })) })
+    await waitFor(() => expect(mock.pickers.length).toBe(2))
+    expect(mock.pickers[1].options).toMatchObject({ value: 'palette:blue' })
+    await act(async () => { mock.pickers[1].resolve('') })
     expect(mock.api.settings.get().routeFolders).toEqual([{ id: 'folder-work', name: 'Work', icon: 'mountain' }])
     dispose()
   })

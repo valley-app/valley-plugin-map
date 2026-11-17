@@ -491,7 +491,8 @@
   "pins.collapseAll": "Collapse all sources",
   "pins.add": "Add pin source",
   "pins.row.hint": "Click to show its notes · double-click to show them on the map · drag or Alt+↑/↓ to reorder",
-  "journey.back": "Connections",
+  "journey.platformChanged": "Platform changed",
+  "journey.back": "Back to connections",
   "journey.swap": "Swap start and destination",
   "journey.soon": "Coming later",
   "places.folders.edit": "Edit folder",
@@ -501,6 +502,5 @@
   "routes.add": "Plan a new route",
   "routes.folders.deleteHint": "Its routes move up one level",
   "routes.menu.show": "Show on map",
-  "routes.name": "Route name",
-  "places.color.none": "No color"
+  "routes.name": "Route name"
 }
