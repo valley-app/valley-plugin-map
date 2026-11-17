@@ -29,12 +29,11 @@ describe('mapFacts', () => {
     expect(value(facts, 'map.basemap')).toContain('unavailable')
   })
 
-  it('reports the offline archive, which overrides the chosen style', () => {
+  it('ignores an offline archive saved before the setting was removed', () => {
     const facts = mapFacts(settings({ defaultStyle: 'satellite', offlineBasemapPath: 'maps/ch.pmtiles' }))
-    expect(value(facts, 'map.basemap')).toContain('maps/ch.pmtiles')
+    expect(value(facts, 'map.basemap')).not.toContain('maps/ch.pmtiles')
     const services = mapServiceFacts(settings({ offlineBasemapPath: 'maps/ch.pmtiles' }), 'satellite')
-    expect(value(services, 'map.provider')).toBe('PMTiles')
-    expect(value(services, 'map.data')).not.toContain('Esri')
+    expect(value(services, 'map.provider')).not.toBe('PMTiles')
   })
 
   it('reports the current map provider when it differs from the preferred style', () => {

@@ -4,13 +4,15 @@ import { MAP_SIDEBAR_TAB_V1, type MapSidebarTab } from './sidebarContract'
 import { uiText } from './localization'
 import { JourneyPanel, isPlannerSnapshot } from './JourneyPanel'
 import { getStore } from './store'
+import { hiddenSidebarPlugins } from './settings'
 
 export function orderedTabs(saved: unknown, available: readonly string[]): string[] {
   const order = Array.isArray(saved) ? saved.filter((value): value is string => typeof value === 'string') : []
   return [...new Set([...order.filter(id => available.includes(id)), ...available])]
 }
 
-export function useSidebarExtensions() {
+/** Every `map.sidebarTab` a plugin contributes, switched off or not. */
+export function useSidebarProviders() {
   const read = () => api.interop.extensions.providers(MAP_SIDEBAR_TAB_V1)
   const [providers, setProviders] = React.useState(read)
   React.useEffect(() => {
@@ -18,7 +20,16 @@ export function useSidebarExtensions() {
     setProviders(read())
     return off
   }, [])
-  return providers.map(provider => ({ id: `extension:${provider.owner}:${provider.extension.id}` as const, provider }))
+  return providers
+}
+
+/** The contributed tabs the sidebar shows: those of plugins not switched off in Settings → Map → Plugins. */
+export function useSidebarExtensions() {
+  const providers = useSidebarProviders()
+  const [hidden, setHidden] = React.useState(() => hiddenSidebarPlugins(api.settings.get()))
+  React.useEffect(() => api.settings.subscribe(() => setHidden(hiddenSidebarPlugins(api.settings.get()))), [])
+  return providers.filter(provider => !hidden.includes(provider.owner))
+    .map(provider => ({ id: `extension:${provider.owner}:${provider.extension.id}` as const, provider }))
 }
 
 export function SidebarTabs({ tabs, active, onSelect, onTabClick }: { tabs: { id: string; label: string; icon: ReactNode }[]; active: string; onSelect(id: string): void; onTabClick?(id: string): void }) {

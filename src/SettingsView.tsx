@@ -2,15 +2,16 @@ import { DISTANCE_UNITS, LENGTH_UNITS, AREA_UNITS, LARGE_AREA_UNITS, SPEED_UNITS
 import { React, api } from './runtime'
 import type { FC, ReactElement, ReactNode } from 'react'
 import type { IndexEntry } from '@valley/plugin-sdk/types'
-import type { MapConnectionInfo } from './serviceClient'
+import { mapServices, type MapConnectionInfo, type SidebarPluginInfo } from './serviceClient'
 import { paletteCssContrast, paletteCssValue } from '@valley/plugin-sdk/palette'
 import type { PinSource } from './types'
 import { defaultPinSource, isSourceActive, notLocatedYet, ruleSummary, sourceStats } from './pinSources'
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown, GripVertical, Pencil, PinGlyph, PIN_GLYPHS, Plus, Trash } from './icons'
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, GripVertical, PinGlyph, PIN_GLYPHS, Plus, Trash, UserSettings } from './icons'
 import { MAP_ICON_FOLDER, refreshMapIcons, useMapIcons } from './pinIcons'
 import { usePinSettings } from './hooks'
 import { uiText } from './localization'
-import { accountProviderChoice, MAP_LAYER_CHOICES, mapLayer, mapLayers, parseAccountProviderChoice, resolveSettings } from './settings'
+import { accountProviderChoice, DEFAULT_ZOOM, ZOOM_MAX, ZOOM_STEP, HIDDEN_SIDEBAR_PLUGINS_KEY, hiddenSidebarPlugins, MAP_LAYER_CHOICES, mapLayer, mapLayers, parseAccountProviderChoice, resolveSettings } from './settings'
+import { useSidebarProviders } from './SidebarTabs'
 import { MapProviderSelect, connectionOption, knownChoice, useMapConnections, type MapSelectOption } from './ProviderPanel'
 
 const Section: typeof api.ui.settings.Section = ({ title, className = '', children }) =>
@@ -24,7 +25,6 @@ const Row: typeof api.ui.settings.Row = ({ title, description, extra, className 
 
 const Button: typeof api.ui.settings.Button = (props) => React.createElement(api.ui.settings.Button, props)
 const IconButton: typeof api.ui.settings.IconButton = (props) => React.createElement(api.ui.settings.IconButton, props)
-const NumberField: typeof api.ui.settings.NumberField = (props) => React.createElement(api.ui.settings.NumberField, props)
 const TextField: typeof api.ui.settings.TextField = (props) => React.createElement(api.ui.settings.TextField, props)
 
 function useSettingsValues(): [Record<string, unknown>, (key: string, value: unknown) => void] {
@@ -47,19 +47,26 @@ function useSettingsValues(): [Record<string, unknown>, (key: string, value: unk
   return [values, commit]
 }
 
-/** The offline basemap is a realm file: draft locally, save on commit, and let the
- *  shared field report a missing file. */
-const OfflineBasemapField: FC<{ value: string; onCommit: (value: string) => void }> = ({ value, onCommit }) => {
-  const { RealmFileField } = api.ui.settings
-  const [draft, setDraft] = React.useState(value)
-  React.useEffect(() => setDraft(value), [value])
+/** The default zoom as the stepped slider with its number box and reset, like Appearance → Font size: 0, 5, 10, 15, 20, 25. */
+const ZoomField: FC<{ value: number; onCommit: (value: number) => void }> = ({ value, onCommit }) => {
+  const { RangeField } = api.ui.settings
+  // A zoom saved between two steps shows on the nearest one.
+  const stepped = Math.round(value / ZOOM_STEP) * ZOOM_STEP
+  const [preview, setPreview] = React.useState(stepped)
+  React.useEffect(() => setPreview(stepped), [stepped])
   return (
-    <RealmFileField
-      value={draft}
-      onChange={setDraft}
-      onCommit={(next) => onCommit(next.trim())}
-      placeholder={uiText('settings.offlinePlaceholder')}
-      ariaLabel={uiText('auto.3ecc6885f182')}
+    <RangeField
+      value={preview}
+      onChange={setPreview}
+      onCommit={onCommit}
+      min={0}
+      max={ZOOM_MAX}
+      step={ZOOM_STEP}
+      showStepMarks
+      resetValue={DEFAULT_ZOOM}
+      resetAriaLabel={uiText('settings.zoomReset')}
+      ariaLabel={uiText('auto.84a3f17b629e')}
+      numberAriaLabel={uiText('auto.84a3f17b629e')}
     />
   )
 }
@@ -114,7 +121,7 @@ const MapSection: FC = () => {
     options.some((option) => option.value === value) ? value : fallback
   const configure = (section: string): ReactElement => (
     <IconButton ariaLabel={uiText('auto.ff93b544d698', { p0: section })} title={uiText('auto.ff93b544d698', { p0: section })} onClick={() => api.workspace.openOwnSettings(section)}>
-      <Pencil />
+      <UserSettings />
     </IconButton>
   )
   const searchOptions: MapSelectOption[] = [{ value: 'nominatim', label: uiText('auto.966d0987e520') }, ...searchChoices]
@@ -132,19 +139,8 @@ const MapSection: FC = () => {
             ariaLabel={uiText('auto.9a227b2961d5')}
           />
         </Row>
-        <Row title={uiText('auto.f4f3cea5d64a')} description={uiText('auto.cbc9357491ce')}>
-          <DraftTextField
-            value={String(values.defaultCenter ?? '8.5417,47.3769')}
-            placeholder={uiText('settings.centerPlaceholder')}
-            ariaLabel={uiText('auto.f4f3cea5d64a')}
-            onCommit={(value) => commit('defaultCenter', value.replace(/\s+/g, ''))}
-          />
-        </Row>
-        <Row title={uiText('auto.84a3f17b629e')} description={uiText('auto.866f73101525')}>
-          <NumberField value={typeof values.defaultZoom === 'number' ? values.defaultZoom : 12} onChange={(value) => commit('defaultZoom', value ?? 12)} min={0} max={22} ariaLabel={uiText('auto.84a3f17b629e')} />
-        </Row>
-        <Row title={uiText('auto.3ecc6885f182')} description={uiText('auto.afacb4a9e148')}>
-          <OfflineBasemapField value={String(values.offlineBasemapPath ?? '')} onCommit={(value) => commit('offlineBasemapPath', value)} />
+        <Row className="settings-font-size-row" title={uiText('auto.84a3f17b629e')} description={uiText('auto.866f73101525')}>
+          <ZoomField value={settings.defaultZoom} onCommit={(value) => commit('defaultZoom', value)} />
         </Row>
       </Section>
 
@@ -735,10 +731,68 @@ const EmbedSection: FC<{ kind: 'embed' | 'codeBlock' }> = ({ kind }) => {
   </Section>
 }
 
+/**
+ * Settings → Map → Plugins: the plugins that add a tab to the Map sidebar
+ * (`map.sidebarTab`), one card each, the same page as Calendar's Plugins. The
+ * switch hides that plugin's tabs in Map only; the gear opens the plugin's own
+ * settings. Name, version and description come from the installed plugin list.
+ */
+const PluginsSection: FC = () => {
+  const { PluginCard } = api.ui.settings
+  const providers = useSidebarProviders()
+  const [values, commit] = useSettingsValues()
+  const [plugins, setPlugins] = React.useState<Record<string, SidebarPluginInfo>>({})
+  const owners = [...new Set(providers.map(provider => provider.owner))]
+  const ownersKey = owners.join('\n')
+  React.useEffect(() => {
+    let live = true
+    const ids = ownersKey ? ownersKey.split('\n') : []
+    if (!ids.length) return
+    mapServices(api).sidebarPlugins(ids)
+      .then(result => { if (live) setPlugins(Object.fromEntries(result.plugins.map(plugin => [plugin.id, plugin]))) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [ownersKey])
+  const hidden = hiddenSidebarPlugins(values)
+  return (
+    <Section className="map-plugins-settings">
+      <div className="map-plugins-intro"><p>{uiText('plugins.description')}</p></div>
+      {owners.length === 0 ? (
+        <span className="settings-empty-text">{uiText('plugins.empty')}</span>
+      ) : (
+        <div className="settings-plugin-list">
+          {owners.map((owner) => {
+            const plugin = plugins[owner]
+            const name = plugin?.name ?? owner
+            const enabled = !hidden.includes(owner)
+            return (
+              <PluginCard
+                key={owner}
+                name={name}
+                version={plugin?.version ?? providers.find(provider => provider.owner === owner)?.version ?? ''}
+                versionLabel={uiText('plugins.version')}
+                author={plugin?.author}
+                authorLabel={uiText('plugins.by')}
+                description={plugin?.description}
+                enabled={enabled}
+                onChange={(next) => commit(HIDDEN_SIDEBAR_PLUGINS_KEY, next ? hidden.filter(id => id !== owner) : [...hidden.filter(id => id !== owner), owner])}
+                toggleLabel={uiText(enabled ? 'plugins.disable' : 'plugins.enable', { p0: name })}
+                onConfigure={plugin?.configurable ? () => api.workspace.openSettings(`plugin:${owner}`) : undefined}
+                configureLabel={uiText('plugins.configure', { p0: name })}
+              />
+            )
+          })}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 /** `map.settings` — rendered once per manifest `settingsSections` id. */
 export const Settings: FC<{ section?: string }> = ({ section }) => {
   if (section === 'embed' || section === 'codeBlock') return <EmbedSection kind={section} />
   if (section === 'pins') return <PinsSection />
+  if (section === 'plugins') return <PluginsSection />
   if (section === 'mapbox') return <ProviderSection providerId="mapbox" connectionKey="mapboxConnectionId" />
   if (section === 'openrouteservice') return <ProviderSection providerId="openrouteservice" connectionKey="openRouteServiceConnectionId" />
   return <><MapSection /><MeasurementsSection /></>

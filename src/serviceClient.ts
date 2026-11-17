@@ -27,6 +27,17 @@ export interface MapPlaceHit {
   latitude: number
 }
 
+/** An installed plugin that adds a tab to the Map sidebar, as Settings → Map → Plugins lists it. */
+export interface SidebarPluginInfo {
+  id: string
+  name: string
+  version: string
+  author?: string
+  description?: string
+  /** The plugin has a settings page of its own. */
+  configurable: boolean
+}
+
 type Result<T> = { ok: boolean; data?: T; error?: string }
 export type PublicMapRequest =
   | { service: 'search'; query: string; near?: LngLat }
@@ -49,6 +60,7 @@ export function mapServices(api: ValleyPluginApi, request?: { id: string; check(
     route: (connectionId: string, coordinates: LngLat[], profile?: string) => call<Result<{ coordinates: LngLat[]; distanceMeters?: number; durationSeconds?: number }>>('route', { connectionId, coordinates, profile }),
     elevation: (connectionId: string, coordinates: LngLat[]) => call<Result<{ elevations: number[] }>>('elevation', { connectionId, coordinates }),
     publicJson: (payload: PublicMapRequest) => call<{ status: number; json: unknown }>('publicJson', payload),
+    sidebarPlugins: (ids: string[]) => api.backend.call<{ plugins: SidebarPluginInfo[] }>('sidebarPlugins', { ids }),
     resource: (url: string) => api.backend.call<{ bodyBase64: string }>('resource', { url }),
     offlineRange: (payload: { path: string; offset: number; length: number }) => api.backend.call<{ bodyBase64: string; etag?: string }>('offlineRange', payload),
     tile: (payload: { connectionId: string; style: string; z: number; x: number; y: number }) => api.backend.call<{ bodyBase64: string }>('tile', payload)

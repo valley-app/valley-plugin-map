@@ -142,6 +142,14 @@ export function register(api: PluginBackendApi): () => void {
       return { icons, failed }
     } finally { await api.storage.close(grant.handle) }
   }, false)
+  handle('sidebarPlugins', async ({ ids }) => {
+    const wanted = new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [])
+    return { plugins: (await api.plugins.list()).filter(plugin => wanted.has(plugin.id)).map(plugin => ({
+      id: plugin.id, name: plugin.name, version: plugin.version, description: plugin.description,
+      ...(plugin.author?.length ? { author: plugin.author.join(', ') } : {}),
+      configurable: Boolean(plugin.settingsView || plugin.settingsSections?.length)
+    })) }
+  }, false)
   handle('beginRequest', () => requests.begin(), false)
   handle('cancelRequest', ({ requestId }) => requests.cancel(requestId), false)
   handle('finishRequest', ({ requestId }) => requests.finish(requestId), false)

@@ -76,6 +76,12 @@
       ]
     },
     {
+      "id": "plugins",
+      "label": "Plugins",
+      "labelKey": "plugin.map.section.plugins",
+      "icon": "blocks"
+    },
+    {
       "id": "mapbox",
       "label": "Mapbox",
       "icon": "mapbox",
@@ -119,28 +125,13 @@
         "labelKey": "surface.provider"
       },
       {
-        "key": "defaultCenter",
-        "label": "Default centre",
-        "type": "text",
-        "default": "8.5417,47.3769",
-        "labelKey": "auto.f4f3cea5d64a"
-      },
-      {
         "key": "defaultZoom",
         "label": "Default zoom",
         "type": "number",
-        "default": 12,
+        "default": 10,
         "min": 0,
-        "max": 22,
+        "max": 25,
         "labelKey": "auto.84a3f17b629e"
-      },
-      {
-        "key": "offlineBasemapPath",
-        "label": "Offline basemap (.pmtiles)",
-        "type": "text",
-        "default": "",
-        "validate": "realm-file",
-        "labelKey": "auto.c8caf0a6cf35"
       },
       {
         "key": "mapboxEnabled",
@@ -266,6 +257,21 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "hiddenSidebarPlugins",
+        "label": "Plugins switched off in the Map sidebar",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 200
           }
         },
         "default": []

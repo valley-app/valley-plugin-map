@@ -807,6 +807,13 @@ button.map-place-sub, button.map-place-coords { align-self:flex-start; }
 .map-pin-popup-row > span:last-child { color:var(--text-color); min-width:0; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; margin-left:auto; }
 
+/* ---- Settings → Map → Plugins: the same page as Calendar's Plugins ---- */
+.map-plugins-intro { margin:var(--space-3) 0; padding:var(--space-3); border:1px solid var(--border-light); border-radius:var(--radius-sm);
+  background:var(--container-color-alt); color:var(--text-secondary); font-size:var(--smaller-font-size); line-height:1.5; }
+.map-plugins-intro p { margin:0; }
+.map-plugins-settings .settings-plugin-list { display:flex; flex-direction:column; gap:var(--space-2); }
+.settings-font-size-row { align-items:center; }
+
 /* ---- pin-source settings editor ------------------------------------ */
 /* One radius for the whole surface — cards, chips, inputs and buttons all sit on var(--radius). */
 .map-settings .settings-path-input { border-radius:var(--radius); }

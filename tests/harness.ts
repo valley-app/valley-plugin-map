@@ -8,7 +8,7 @@ import { register } from '../src/backend'
 import type { mapServices } from '../src/serviceClient'
 
 export type { MockValleyApi }
-type Methods = Partial<Pick<ReturnType<typeof mapServices>, 'listConnections' | 'route'>>
+type Methods = Partial<Pick<ReturnType<typeof mapServices>, 'listConnections' | 'route' | 'sidebarPlugins'>>
 const eventListeners = new WeakMap<ValleyPluginApi, Map<string, Set<(payload: unknown) => void>>>()
 export function emitMapEvent(api: ValleyPluginApi, event: string): void { for (const listener of eventListeners.get(api)?.get(event) ?? []) listener(undefined) }
 const overrides = new WeakMap<object, Methods>()
@@ -80,6 +80,7 @@ export function createMockValleyApi(options: Parameters<typeof createBaseMock>[0
       const value = payload as Record<string, unknown> | undefined
       if (method === 'listConnections' && custom?.listConnections) return await custom.listConnections(value?.capability as string | undefined) as T
       if (method === 'route' && custom?.route) return await custom.route(value?.connectionId as string, value?.coordinates as Array<[number, number]>, value?.profile as string | undefined) as T
+      if (method === 'sidebarPlugins' && custom?.sidebarPlugins) return await custom.sidebarPlugins(value?.ids as string[]) as T
       const handler = handlers.get(method)
       if (!handler) throw new Error(`Unknown backend method ${method}`)
       return await handler(payload) as T

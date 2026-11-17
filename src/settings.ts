@@ -12,21 +12,13 @@ import type {
 
 /** Defaults mirror the manifest `settingsSchema` in src/main/modules/plugin-host/plugins.ts. */
 export const DEFAULT_CENTER: LngLat = [8.5417, 47.3769] // Zürich
-export const DEFAULT_ZOOM = 12
+export const DEFAULT_ZOOM = 10
+/** The default zoom is chosen in steps of five: 0, 5, 10, 15, 20, 25. The map itself stops at its closest zoom. */
+export const ZOOM_MAX = 25
+export const ZOOM_STEP = 5
 
 function str(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value.trim() : fallback
-}
-
-function parseCenter(value: unknown): LngLat {
-  if (typeof value === 'string') {
-    const parts = value.split(/[,;\s]+/).filter(Boolean).map(Number)
-    if (parts.length >= 2 && parts.every(Number.isFinite)) {
-      const [lng, lat] = parts
-      if (lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) return [lng, lat]
-    }
-  }
-  return DEFAULT_CENTER
 }
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -89,8 +81,8 @@ export function resolveSettings(raw: Record<string, unknown>): MapSettings {
   return {
     defaultStyle: oneOf<MapStyleId>(raw.defaultStyle, MAP_LAYER_CHOICES.map((choice) => choice.id), 'streets'),
     basemapProvider: accountChoice(raw.basemapProvider) ?? 'free',
-    defaultCenter: parseCenter(raw.defaultCenter),
-    defaultZoom: Number.isFinite(zoomRaw) && zoomRaw >= 0 && zoomRaw <= 22 ? zoomRaw : DEFAULT_ZOOM,
+    defaultCenter: DEFAULT_CENTER,
+    defaultZoom: Number.isFinite(zoomRaw) && zoomRaw >= 0 && zoomRaw <= ZOOM_MAX ? zoomRaw : DEFAULT_ZOOM,
     mapboxEnabled,
     openRouteServiceEnabled,
     mapboxConnectionId,
@@ -98,8 +90,17 @@ export function resolveSettings(raw: Record<string, unknown>): MapSettings {
     searchProvider: accountChoice(raw.searchProvider) ?? 'nominatim',
     routingProvider: accountChoice(raw.routingProvider) ?? 'osrm',
     elevationProvider: raw.elevationProvider === 'none' ? 'none' : accountChoice(raw.elevationProvider) ?? 'open-elevation',
-    offlineBasemapPath: str(raw.offlineBasemapPath)
+    // The offline basemap setting is gone (17 Nov); a path saved earlier is not read.
+    offlineBasemapPath: ''
   }
+}
+
+/** Plugins whose `map.sidebarTab` tabs are switched off in Settings → Map → Plugins, by plugin id. */
+export const HIDDEN_SIDEBAR_PLUGINS_KEY = 'hiddenSidebarPlugins'
+
+export function hiddenSidebarPlugins(raw: Record<string, unknown>): string[] {
+  const value = raw[HIDDEN_SIDEBAR_PLUGINS_KEY]
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
 }
 
 export function mapboxUsable(settings: MapSettings): boolean {

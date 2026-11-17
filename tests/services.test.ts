@@ -413,13 +413,14 @@ describe('settings resolver', () => {
     const s = resolveSettings({})
     expect(s.defaultStyle).toBe('streets')
     expect(s.defaultCenter).toEqual(DEFAULT_CENTER)
-    expect(s.defaultZoom).toBe(12)
+    expect(s.defaultZoom).toBe(10)
     expect(s.routingProvider).toBe('osrm')
     expect(s.elevationProvider).toBe('open-elevation')
   })
-  it('parses centre + coerces invalid enums', () => {
-    const s = resolveSettings({ defaultCenter: '7.44,11.95', defaultZoom: 9, defaultStyle: 'bogus', mapboxEnabled: true, mapboxConnectionId: 'mapbox-1' })
-    expect(s.defaultCenter).toEqual([7.44, 11.95])
+  it('always opens at the fixed default centre and coerces invalid enums', () => {
+    const s = resolveSettings({ defaultCenter: '7.44,11.95', offlineBasemapPath: 'maps/field.pmtiles', defaultZoom: 9, defaultStyle: 'bogus', mapboxEnabled: true, mapboxConnectionId: 'mapbox-1' })
+    expect(s.defaultCenter).toEqual([8.5417, 47.3769])
+    expect(s.offlineBasemapPath).toBe('')
     expect(s.defaultZoom).toBe(9)
     expect(s.defaultStyle).toBe('streets')
     expect(s.mapboxEnabled).toBe(true)

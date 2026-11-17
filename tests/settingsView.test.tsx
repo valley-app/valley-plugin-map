@@ -10,7 +10,9 @@ import { initLocalization } from '../src/localization'
 import { createStore, disposeStore } from '../src/store'
 import { Settings } from '../src/SettingsView'
 import { Panel } from '../src/Panel'
-import { accountProviderChoice, resolveSettings } from '../src/settings'
+import { accountProviderChoice, hiddenSidebarPlugins, resolveSettings } from '../src/settings'
+import { MAP_SIDEBAR_TAB_V1 } from '../src/sidebarContract'
+import { useSidebarExtensions } from '../src/SidebarTabs'
 import { ProviderPanel } from '../src/ProviderPanel'
 import { planRoute } from '../src/routing'
 import { MapColorModeField, MapLayerField } from '../src/MetadataSegment'
@@ -542,7 +544,74 @@ describe('Map provider controls', () => {
     expect(screen.getByText('Routing · Elevation')).toBeInTheDocument()
   })
 
-  it('places each provider pencil immediately before its switch', async () => {
+  it('offers no default centre or offline basemap and sets the default zoom with a slider in steps of five up to 25', async () => {
+    const mock = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] }, settings: { defaultZoom: 11 } })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    await act(async () => { render(React.createElement(Settings)) })
+    expect(screen.queryByText('Default centre')).toBeNull()
+    expect(screen.queryByText('Offline basemap')).toBeNull()
+    const slider = screen.getByRole('slider', { name: 'Default zoom' })
+    expect(slider).toHaveAttribute('min', '0')
+    expect(slider).toHaveAttribute('max', '25')
+    expect(slider).toHaveAttribute('step', '5')
+    expect(slider).toHaveValue('10')
+    fireEvent.change(slider, { target: { value: '15' } })
+    fireEvent.pointerUp(slider)
+    fireEvent.blur(slider)
+    await waitFor(() => expect(mock.api.settings.get().defaultZoom).toBe(15))
+  })
+
+  it('lists the plugins that add a Map sidebar tab and switches one off for Map only', async () => {
+    const sidebarPlugins = vi.fn(async (ids: string[]) => ({ plugins: ids.map(id => ({ id, name: 'Timetable', version: '1.2.0', author: 'example', description: 'Stations and connections.', configurable: true })) }))
+    const mock = createMockValleyApi({ manifest: { id: 'map', drivers: [] }, overrides: { backend: mapBackend({ sidebarPlugins }) } })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    mock.api.interop.extensions.provide(MAP_SIDEBAR_TAB_V1, {
+      id: 'timetable', label: 'Timetable', icon: { viewBox: '0 0 24 24', path: 'M0 0h24v24H0z' },
+      getSnapshot: () => ({ fields: [], actions: [], rows: [] }), subscribe: () => () => {}, run: async () => {}
+    })
+    const owner = mock.api.interop.extensions.providers(MAP_SIDEBAR_TAB_V1)[0].owner
+    await act(async () => { render(<Settings section="plugins" />) })
+    await waitFor(() => expect(screen.getByText('Timetable')).toBeInTheDocument())
+    expect(sidebarPlugins).toHaveBeenCalledWith([owner])
+    expect(screen.getByText('Stations and connections.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Timetable' }))
+    expect(mock.api.workspace.openSettings).toHaveBeenCalledWith(`plugin:${owner}`)
+    fireEvent.click(screen.getByRole('switch', { name: 'Disable Timetable in Map' }))
+    await waitFor(() => expect(mock.api.settings.get().hiddenSidebarPlugins).toEqual([owner]))
+    expect(hiddenSidebarPlugins(mock.api.settings.get())).toEqual([owner])
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable Timetable in Map' }))
+    await waitFor(() => expect(mock.api.settings.get().hiddenSidebarPlugins).toEqual([]))
+  })
+
+  it('leaves out the sidebar tabs of a plugin that is switched off', async () => {
+    const mock = createMockValleyApi({ manifest: { id: 'map', drivers: [] } })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    mock.api.interop.extensions.provide(MAP_SIDEBAR_TAB_V1, {
+      id: 'timetable', label: 'Timetable', icon: { viewBox: '0 0 24 24', path: 'M0 0h24v24H0z' },
+      getSnapshot: () => ({ fields: [], actions: [], rows: [] }), subscribe: () => () => {}, run: async () => {}
+    })
+    const owner = mock.api.interop.extensions.providers(MAP_SIDEBAR_TAB_V1)[0].owner
+    const Tabs = (): React.ReactElement => <ul>{useSidebarExtensions().map(tab => <li key={tab.id}>{tab.provider.extension.label}</li>)}</ul>
+    await act(async () => { render(<Tabs />) })
+    expect(screen.getByText('Timetable')).toBeInTheDocument()
+    await act(async () => { await mock.api.settings.set('hiddenSidebarPlugins', [owner]) })
+    await waitFor(() => expect(screen.queryByText('Timetable')).toBeNull())
+    await act(async () => { await mock.api.settings.set('hiddenSidebarPlugins', []) })
+    await waitFor(() => expect(screen.getByText('Timetable')).toBeInTheDocument())
+  })
+
+  it('says so when no plugin adds a tab to Map', async () => {
+    const mock = createMockValleyApi({ manifest: { id: 'map', drivers: [] } })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    await act(async () => { render(<Settings section="plugins" />) })
+    expect(screen.getByText('No plugin adds a tab to Map.')).toBeInTheDocument()
+  })
+
+  it('places each provider account button immediately before its switch', async () => {
     const mock = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
     initLocalization(mock.api)
     initRuntime(mock.api)
