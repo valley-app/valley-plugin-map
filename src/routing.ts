@@ -1,6 +1,6 @@
 import { withMapRequest, type MapRequest } from './requests'
 import type { LngLat, MapSettings, RouteStep, TravelMode, Waypoint } from './types'
-import { isValidLngLat } from './geo'
+import { haversineMeters, isValidLngLat } from './geo'
 import { api } from './runtime'
 import { effectiveRoutingProvider, parseAccountProviderChoice } from './settings'
 
@@ -50,9 +50,59 @@ export function osrmDemoUrl(waypoints: Waypoint[]): string {
   return `${OSRM_DEMO}/driving/${coordsParam(waypoints)}?${OSRM_QUERY}`
 }
 
+/**
+ * Why no route could be drawn, so the planner can say it in plain words:
+ * `no-route` (the places are not connected for this travel mode), `off-road`
+ * (a stop is nowhere near a road or path), `too-far` (more than the service
+ * plans), `same-place` (start and destination are one spot), `offline` (no
+ * network), `busy` (rate limited) and `service` (the routing service failed).
+ */
+export type RouteProblemReason = 'no-route' | 'off-road' | 'too-far' | 'same-place' | 'offline' | 'busy' | 'service'
+
+export class RouteProblem extends Error {
+  /** `final`: the travel mode's own router answered and no other server would do better. */
+  constructor(readonly reason: RouteProblemReason, message: string, readonly final = false) { super(message); this.name = 'RouteProblem' }
+}
+
+/** The reason behind a failed plan; anything unrecognised is the service's fault. */
+export function routeProblemReason(error: unknown): RouteProblemReason {
+  if (error instanceof RouteProblem) return error.reason
+  const message = error instanceof Error ? error.message : String(error)
+  if (/network access is disabled|offline|ENOTFOUND|ENETUNREACH|ECONNREFUSED|EAI_AGAIN|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_NETWORK|fetch failed|Failed to fetch/i.test(message)) return 'offline'
+  if (/\b429\b|rate limit|too many requests/i.test(message)) return 'busy'
+  return 'service'
+}
+
+/** An OSRM answer that is not a route, read by its `code` first and its status second. */
+function osrmProblem(status: number, json: unknown): RouteProblem {
+  const code = String((json as { code?: unknown } | null)?.code ?? '')
+  const reason: RouteProblemReason = code === 'NoRoute' ? 'no-route' : code === 'NoSegment' ? 'off-road' : code === 'TooBig' ? 'too-far'
+    : status === 429 ? 'busy' : 'service'
+  return new RouteProblem(reason, reason === 'no-route' ? 'No route found' : `Routing failed (${status}${code ? ` ${code}` : ''})`)
+}
+
+/** A stop this far from the nearest road is not on the route at all … */
+const OFF_ROAD_METERS = 10_000
+/** … and one this far is across water or unmapped land: the router only reached the nearest shore. */
+const UNREACHED_METERS = 50_000
+
+/**
+ * A router always answers with a line between the nearest roads it can find,
+ * even when a stop is on another continent: the line then ends on the nearest
+ * coast and looks like a route. Compare where each stop was asked for with
+ * where the router put it, and say so instead of drawing that line.
+ */
+function reachedStops(route: RawRoute, waypoints: Waypoint[]): RawRoute {
+  if (route.snapped?.length !== waypoints.length) return route
+  const off = Math.max(...waypoints.map((waypoint, index) => haversineMeters([waypoint.lng, waypoint.lat], route.snapped![index])))
+  if (off > UNREACHED_METERS) throw new RouteProblem('no-route', 'No route found', true)
+  if (off > OFF_ROAD_METERS) throw new RouteProblem('off-road', 'A stop is too far from any road', true)
+  return route
+}
+
 async function fetchJson(waypoints: Waypoint[], mode: TravelMode, request: MapRequest, demo = false): Promise<unknown> {
   const result = await request.services.publicJson({ service: 'route', waypoints, mode, demo })
-  if (result.status < 200 || result.status >= 300) throw new Error(`Routing failed (${result.status})`)
+  if (result.status < 200 || result.status >= 300) throw osrmProblem(result.status, result.json)
   return result.json
 }
 
@@ -283,17 +333,30 @@ export async function planRoute(
   }
 
   // Default: the free FOSSGIS OSRM instance for the requested mode.
+  let first: unknown
   try {
     const parsed = parseOsrmResponse(await fetchJson(waypoints, mode, request))
-    if (parsed) return parsed
-  } catch {
+    if (parsed) return reachedStops(parsed, waypoints)
+  } catch (error) {
+    // The mode's own router answered, and its line does not reach a stop: a second server does no better.
+    if (error instanceof RouteProblem && error.final) throw error
     request.check()
     // Fall through to the demo server rather than failing the whole plan.
+    first = error
   }
 
   // Last resort: the car-only demo server. A walk/ride routed here is a car
   // route wearing the wrong badge, so say so instead of showing it silently.
-  const parsed = parseOsrmResponse(await fetchJson(waypoints, mode, request, true))
-  if (!parsed) throw new Error('No route found')
-  return { ...parsed, modeApproximated: mode !== 'driving' }
+  try {
+    const parsed = parseOsrmResponse(await fetchJson(waypoints, mode, request, true))
+    if (parsed) return { ...reachedStops(parsed, waypoints), modeApproximated: mode !== 'driving' }
+  } catch (error) {
+    request.check()
+    if (error instanceof RouteProblem && error.final) throw error
+    // What the mode's own router said about these places tells the user more
+    // than a second server's failure: keep it when it named a reason.
+    const reason = first === undefined ? 'service' : routeProblemReason(first)
+    throw reason === 'no-route' || reason === 'off-road' || reason === 'too-far' ? first : error
+  }
+  throw new RouteProblem('no-route', 'No route found')
 }

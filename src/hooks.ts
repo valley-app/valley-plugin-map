@@ -17,6 +17,7 @@ const EMPTY: MapSnapshot = {
   plan: null,
   planning: false,
   planError: null,
+  planProblem: null,
   style: 'streets',
   colorMode: 'system',
   resolvedColorMode: 'light',

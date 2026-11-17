@@ -1,17 +1,16 @@
-import { React, api } from './runtime'
+import { React, api } from '../../runtime'
 import type { DragEvent, FC, MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { UiMenuItem } from '@valley/plugin-sdk'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
-import { useMap } from './hooks'
-import { formatDistance } from './format'
-import type { PlaceFolder, Route } from './types'
-import { uiText } from './localization'
-import { ColorDot, iconSubmenu, menuTarget, pickColor, rowIconAnchor, strings, useSetting } from './PlacesTab'
+import { useMap } from '../../hooks'
+import { formatDistance } from '../../format'
+import type { PlaceFolder, Route } from '../../types'
+import { uiText } from '../../localization'
+import { ColorDot, FolderGlyph, filed, iconSubmenu, menuTarget, pickColor, rowIconAnchor, strings, useSetting } from '../shared/tree'
 import {
   addPlaceFolder,
   deleteFolder,
   filedRoutes,
-  folderColor,
   folderItemCount,
   folderVisible,
   itemsIn,
@@ -25,7 +24,7 @@ import {
   subfolders,
   type PlaceDrop,
   type RouteFiling
-} from './placeFolders'
+} from '../../placeFolders'
 import {
   ChevronRight,
   ChevronsDownUp,
@@ -42,7 +41,7 @@ import {
   RouteIcon,
   TextCursorInput,
   Trash
-} from './icons'
+} from '../../icons'
 
 type Item = RouteFiling & { route: Route }
 type Dragged = { kind: 'route' | 'folder'; id: string }
@@ -112,6 +111,9 @@ export const RoutesTab: FC = () => {
   }
   const setIcon = (item: Item, icon: string): void => {
     void commit(null, items.map(entry => entry.id === item.id ? { ...entry, icon: icon || undefined } : entry), uiText('places.icon.change')).catch(fail)
+  }
+  const setColor = (item: Item, color: string): void => {
+    void commit(null, items.map(entry => entry.id === item.id ? { ...entry, color: color || undefined } : entry), uiText('surface.color')).catch(fail)
   }
   const flip = (list: string[], id: string): string[] => list.includes(id) ? list.filter(entry => entry !== id) : [...list, id]
   const eyeButton = (hidden: boolean, onToggle: () => void, name: string): ReactElement => (
@@ -214,10 +216,15 @@ export const RoutesTab: FC = () => {
   const openRouteMenu = (event: ReactMouseEvent<HTMLElement>, item: Item): void => {
     event.preventDefault()
     event.stopPropagation()
+    const anchor = rowIconAnchor(event)
     void api.ui.openMenu([
       { id: 'show', label: uiText('routes.menu.show'), icon: <Eye />, onSelect: () => store.showRoute(item.route) },
       { id: 'rename', label: uiText('places.menu.rename'), icon: <TextCursorInput />, onSelect: () => setRenaming(`route:${item.id}`) },
-      { id: 'icon', label: uiText('places.icon.change'), icon: item.icon ? <MenuPinGlyph id={item.icon} /> : <RouteIcon />, submenu: iconSubmenu(item.icon, 'route', icon => setIcon(item, icon)) },
+      // Icon and colour belong to a route only while it is outside every folder.
+      ...(filed(folders, item.folder) ? [] : [
+        { id: 'icon', label: uiText('places.icon.change'), icon: item.icon ? <MenuPinGlyph id={item.icon} /> : <RouteIcon />, submenu: iconSubmenu(item.icon, 'route', icon => setIcon(item, icon)) },
+        { id: 'color', label: uiText('surface.color'), icon: <ColorDot color={item.color} />, onSelect: () => pickColor(anchor, item.color ?? '', color => setColor(item, color)) }
+      ]),
       { id: 'move', label: uiText('places.menu.move'), icon: <FolderInput />, enabled: folders.length > 0, submenu: moveMenu(item) },
       { type: 'separator' },
       { id: 'delete', label: uiText('auto.520876018815'), icon: <Trash />, danger: true, onSelect: () => { void store.deleteRoute(item.id) } }
@@ -268,15 +275,18 @@ export const RoutesTab: FC = () => {
   const routeRow = (item: Item, depth: number): ReactElement => {
     const key = `route:${item.id}`
     const { route } = item
-    const color = folderColor(folders, item.folder)
+    // Rows inside a folder carry no glyph of their own: the folder speaks for them.
+    const inFolder = filed(folders, item.folder)
     return (
-      <div key={item.id} className={`map-row map-tree-row map-route-row${snap.savedRouteId === item.id ? ' active' : ''}${shownOnMap(item) ? '' : ' is-hidden'}${markClass(key)}`}
+      <div key={item.id} className={`map-row map-tree-row map-route-row${inFolder ? ' is-filed' : ''}${snap.savedRouteId === item.id ? ' active' : ''}${shownOnMap(item) ? '' : ' is-hidden'}${markClass(key)}`}
         style={{ ['--map-tree-depth' as string]: depth }}
         onClick={() => { if (renaming !== key) store.showRoute(route) }} role="button" tabIndex={0}
         onContextMenu={(event) => openRouteMenu(event, item)}
         {...dragProps('route', item.id)} {...dropProps('route', item.id)}>
-        <span className="map-tree-slot" />
-        <span className="map-row-icon" style={color ? { color: paletteCssValue(color) } : undefined}><RouteGlyph icon={item.icon} /></span>
+        {!inFolder && <>
+          <span className="map-tree-slot" />
+          <span className="map-row-icon" style={item.color ? { color: paletteCssValue(item.color) } : undefined}><RouteGlyph icon={item.icon} /></span>
+        </>}
         {renaming === key
           ? nameField(key, route.name, undefined, uiText('routes.name'), name => renameRoute(route, name))
           : (
@@ -308,7 +318,7 @@ export const RoutesTab: FC = () => {
         onContextMenu={(event) => openFolderMenu(event, folder)}
         {...dragProps('folder', folder.id)} {...dropProps('folder', folder.id)}>
         <span className={`map-tree-slot map-folder-chevron${folded ? '' : ' open'}`}><ChevronRight /></span>
-        <span className="map-row-icon map-folder-icon" style={folder.color ? { color: paletteCssValue(folder.color) } : undefined}>{folder.icon ? <PinGlyph id={folder.icon} /> : <Folder />}</span>
+        <span className="map-row-icon map-folder-icon" style={folder.color ? { color: paletteCssValue(folder.color) } : undefined}><FolderGlyph folder={folder} open={!folded} /></span>
         {renaming === key
           ? nameField(key, folder.name, PLACE_FOLDER_NAME_MAX, uiText('places.folders.name'), name => renameFolder(folder.id, name))
           : <span className="map-row-title">{folder.name}</span>}

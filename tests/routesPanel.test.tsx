@@ -9,7 +9,7 @@ import { initLocalization } from '../src/localization'
 import { createStore, disposeStore } from '../src/store'
 import { Panel } from '../src/Panel'
 import type { MapEngine } from '../src/mapEngine'
-import { filedRoutes, folderColor, normalizeRouteFiling, routeFiling } from '../src/placeFolders'
+import { filedRoutes, folderColor, itemLook, normalizeRouteFiling, routeFiling } from '../src/placeFolders'
 
 vi.mock('../src/geocode', () => ({
   GeocodeError: class GeocodeError extends Error {},
@@ -69,10 +69,21 @@ describe('route folder helpers', () => {
     expect(routeFiling(items)).toEqual([{ id: 'c', folder: 'folder-x' }, { id: 'a' }, { id: 'b' }])
   })
 
-  it('colours a route line with its folder, falling back to the parent folder', () => {
+  it('colours a route line with the folder it is filed in, never the folder above', () => {
     const folders = [{ id: 'folder-a', name: 'A', color: 'palette:blue' }, { id: 'folder-b', name: 'B', parent: 'folder-a' }]
-    expect(folderColor(folders, 'folder-b')).toBe('palette:blue')
+    expect(folderColor(folders, 'folder-a')).toBe('palette:blue')
+    expect(folderColor(folders, 'folder-b')).toBeUndefined()
     expect(folderColor(folders, undefined)).toBeUndefined()
+  })
+
+  it('draws an item with its own icon and colour only outside every folder', () => {
+    const folders = [{ id: 'folder-a', name: 'A', icon: 'star', color: 'palette:blue' }, { id: 'folder-b', name: 'B', parent: 'folder-a' }]
+    expect(itemLook(folders, { icon: 'home', color: 'palette:red' })).toEqual({ icon: 'home', color: 'palette:red' })
+    expect(itemLook(folders, { folder: 'folder-a', icon: 'home', color: 'palette:red' })).toEqual({ icon: 'star', color: 'palette:blue' })
+    // A subfolder without an icon gives the default look, not its parent folder's.
+    expect(itemLook(folders, { folder: 'folder-b', icon: 'home', color: 'palette:red' })).toEqual({ icon: undefined, color: undefined })
+    // A folder that no longer exists counts as no folder.
+    expect(itemLook(folders, { folder: 'folder-gone', icon: 'home' })).toEqual({ icon: 'home', color: undefined })
   })
 })
 
@@ -117,13 +128,27 @@ describe('Favourite routes tab', () => {
     // Route menu: every item carries an icon; Move to folder opens Weekend's submenu, which starts with Weekend itself.
     await act(async () => { fireEvent.click(moreOf('Grindelwald – First')) })
     const menu = mock.menus.at(-1) ?? []
-    expect(menu.map(item => item.id)).toEqual(['show', 'rename', 'icon', 'move', undefined, 'delete'])
+    expect(menu.map(item => item.id)).toEqual(['show', 'rename', 'icon', 'color', 'move', undefined, 'delete'])
     expect(menu.filter(item => item.id).every(item => item.icon)).toBe(true)
     const move = menu.find(item => item.id === 'move') as { submenu: { id: string; submenu?: { id: string }[] }[] }
     expect(move.submenu.map(item => item.id)).toEqual(['top-level', `${folders()[0].id}:sub`])
     expect(move.submenu[1].submenu?.map(item => item.id)).toEqual([folders()[0].id, folders()[1].id])
     await chooseFromMenu(mock, moreOf('Grindelwald – First'), folders()[1].id)
     await waitFor(() => expect(mock.api.settings.get().routeFiling).toEqual([{ id: 'route-commute' }, { id: 'route-hike', folder: folders()[1].id }]))
+    // Inside a folder a route has no glyph and no icon or colour of its own; outside it keeps both.
+    const filedRow = screen.getByText('Grindelwald – First').closest('.map-tree-row') as HTMLElement
+    expect(filedRow.classList.contains('is-filed')).toBe(true)
+    expect(filedRow.querySelector('.map-row-icon')).toBeNull()
+    expect((screen.getByText('Bern – Basel').closest('.map-tree-row') as HTMLElement).querySelector('.map-row-icon')).not.toBeNull()
+    await act(async () => { fireEvent.click(moreOf('Grindelwald – First')) })
+    expect((mock.menus.at(-1) ?? []).map(item => item.id)).toEqual(['show', 'rename', 'move', undefined, 'delete'])
+    // A folder's own glyph is the open folder while it is expanded and the closed one when folded.
+    const folderIcon = (): string => (screen.getByText('Weekend').closest('.map-tree-row') as HTMLElement).querySelector('.map-folder-icon')!.innerHTML
+    const open = folderIcon()
+    await act(async () => { fireEvent.click(screen.getByText('Weekend')) })
+    await waitFor(() => expect(folderIcon()).not.toBe(open))
+    await act(async () => { fireEvent.click(screen.getByText('Weekend')) })
+    await waitFor(() => expect(folderIcon()).toBe(open))
 
     await chooseFromMenu(mock, moreOf('Hikes'), 'delete')
     await waitFor(() => expect(folders()).toHaveLength(1))

@@ -1,5 +1,5 @@
 import { mapIconSvg, subscribeMapIcons } from './pinIcons'
-import { filedRoutes, folderColor, normalizePlaceFolders, normalizeRouteFiling, visibleItems, visiblePlaces } from './placeFolders'
+import { filedRoutes, itemLook, normalizePlaceFolders, normalizeRouteFiling, visibleItems, visiblePlaces } from './placeFolders'
 import { mapServices } from './serviceClient'
 import type { DataRecord, IndexEntry } from '@valley/plugin-sdk/types'
 import { createIndexObserver } from '@valley/plugin-sdk'
@@ -39,7 +39,7 @@ import {
   sanitizePinSource,
   type GeoCache
 } from './pinSources'
-import { GeocodeError, matchSavedPlaces, searchPlaces, searchPlacesWithProvider, reverseGeocode } from './geocode'
+import { GeocodeError, matchSavedPlaces, searchPlaces, searchPlacesWithProvider, reverseGeocode, withoutNearDuplicates } from './geocode'
 import { searchProviderIdentity } from './geocodeProviders'
 
 const PLACE_SEARCH_CACHE_MS = 10 * 60_000
@@ -48,10 +48,10 @@ import { createMapRequests, readableError } from './requests'
 import { createBackgroundGeocoding } from './backgroundGeocoding'
 import { uiText } from './localization'
 import { setFormatUnits } from './format'
-import { planRoute } from './routing'
+import { planRoute, RouteProblem, routeProblemReason, type RouteProblemReason } from './routing'
 import { computeElevationProfile } from './elevation'
 import { api as runtimeApi, initRuntime, captureMapRenderOwner, type MapRenderOwner } from './runtime'
-import { isValidLngLat } from './geo'
+import { haversineMeters, isValidLngLat } from './geo'
 
 const PLACES_DATASET = 'places'
 const ROUTES_DATASET = 'routes'
@@ -109,6 +109,8 @@ function sameUnits(a: ValleyUnits, b: ValleyUnits): boolean {
 const PANEL_TABS: PanelTab[] = ['search', 'places', 'routes', 'pins']
 const isPanelTab = (value: unknown): value is PanelTab => typeof value === 'string' && (PANEL_TABS.includes(value as PanelTab) || /^extension:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(value))
 const TRAVEL_MODES: TravelMode[] = ['driving', 'walking', 'cycling']
+/** Stops closer together than this are one place: there is nothing to route between them. */
+const SAME_PLACE_METERS = 10
 
 /** The filled stops of a stop list, in order. */
 /**
@@ -345,6 +347,8 @@ export interface MapSnapshot {
   plan: RoutePlan | null
   planning: boolean
   planError: string | null
+  /** Why the last plan failed, for a message in plain words; null while there is a route or nothing to plan. */
+  planProblem: RouteProblemReason | null
   style: MapStyleId
   colorMode: MapColorMode
   /** The appearance the map is drawn in — `colorMode` with System resolved. */
@@ -447,6 +451,7 @@ export class MapStore {
   private plan: RoutePlan | null = null
   private planning = false
   private planError: string | null = null
+  private planProblem: RouteProblemReason | null = null
   private planToken = 0
   private planTimer: number | null = null
 
@@ -656,6 +661,7 @@ export class MapStore {
       plan: this.plan,
       planning: this.planning,
       planError: this.planError,
+      planProblem: this.planProblem,
       style: this.style,
       colorMode: this.colorMode,
       resolvedColorMode: this.resolvedColorMode(),
@@ -1243,7 +1249,8 @@ export class MapStore {
 
   /** The live position as a stop. English label: it is a stored record field
    *  (see {@link Waypoint.fromLiveLocation}), and the row translates it. */
-  private liveLocationStop(): Waypoint | null {
+  /** The device's position as a stop, or null without a fix. */
+  liveLocationStop(): Waypoint | null {
     const fix = this.liveLocation
     if (!fix) return null
     return { lng: fix.lng, lat: fix.lat, label: uiText('map.place.yourLocation'), fromLiveLocation: true }
@@ -1411,9 +1418,14 @@ export class MapStore {
   /** The main map draws the places whose eye is open — the Favorites bar's, every folder's above them and their own — as pins. */
   private pushPlaces(): void {
     const settings = this.api.settings.get()
-    const shown = settings.placesHidden === true ? [] : visiblePlaces(this.places, normalizePlaceFolders(settings.placeFolders), stringList(settings.hiddenPlaceFolders), stringList(settings.hiddenPlaces))
+    const folders = normalizePlaceFolders(settings.placeFolders)
+    const shown = settings.placesHidden === true ? [] : visiblePlaces(this.places, folders, stringList(settings.hiddenPlaceFolders), stringList(settings.hiddenPlaces))
     this.engine?.setPlaces([])
-    this.engine?.setPlaceMarkers(shown.map(place => ({ id: place.id, name: place.name, lng: place.lng, lat: place.lat, color: place.color, icon: place.icon, iconSvg: place.icon ? mapIconSvg(place.icon, this.api) : undefined })), this.selectedPlaceId)
+    this.engine?.setPlaceMarkers(shown.map(place => {
+      // A place in a folder wears that folder's icon and colour; only a place outside every folder has its own.
+      const { icon, color } = itemLook(folders, place)
+      return { id: place.id, name: place.name, lng: place.lng, lat: place.lat, color, icon, iconSvg: icon ? mapIconSvg(icon, this.api) : undefined }
+    }), this.selectedPlaceId)
   }
 
   /** The main map draws the saved routes whose eye is open — the Routes bar's, every folder's above them and their own — as lines in their folder's colour. */
@@ -1423,7 +1435,7 @@ export class MapStore {
     const folders = normalizePlaceFolders(settings.routeFolders)
     const shown = settings.routesHidden === true ? [] : visibleItems(filedRoutes(this.routes, normalizeRouteFiling(settings.routeFiling)), folders, stringList(settings.hiddenRouteFolders), stringList(settings.hiddenRoutes))
     this.engine.setSavedRoutes(shown.flatMap(item => item.route.geometry && item.route.geometry.length > 1
-      ? [{ id: item.id, coords: item.route.geometry, color: folderColor(folders, item.folder) }] : []))
+      ? [{ id: item.id, coords: item.route.geometry, color: itemLook(folders, item).color }] : []))
   }
 
   /**
@@ -1593,21 +1605,17 @@ export class MapStore {
     this.searchBusy = true
     this.searchError = null
     this.emit()
+    // Saved places need no network: they lead the list and stay when the geocoder cannot be reached.
+    const saved: GeoResult[] = this.matchingSavedPlaces(query, 3).map(place => ({ name: place.name, lng: place.lng, lat: place.lat }))
     try {
       const hits = await this.lookupPlaces(query, controller.signal)
       if (mine !== this.searchToken) return
-      this.searchResults = hits
+      this.searchResults = [...saved, ...withoutNearDuplicates(hits, saved)]
       this.searchError = null
     } catch (err) {
       if (mine !== this.searchToken) return
-      this.searchResults = []
-      // A rate-limit is not a broken search, and the difference matters: it
-      // clears on its own, and a Mapbox token avoids the shared endpoint that
-      // imposes it. A flat "Search failed" sent the user looking for a fault.
-      this.searchError =
-        err instanceof GeocodeError && err.status === 429
-          ? uiText('auto.41155237208d')
-          : uiText('auto.e2e904ac10fc')
+      this.searchResults = saved
+      this.searchError = saved.length ? null : this.searchProblemText(err)
     } finally {
       if (this.searchRequest === controller) this.searchRequest = null
       if (mine === this.searchToken) {
@@ -1617,6 +1625,16 @@ export class MapStore {
         this.markSession()
       }
     }
+  }
+
+  /**
+   * Why a place search found nothing, in words the user can act on. A rate
+   * limit is not a broken search (it clears on its own, and a Mapbox token
+   * avoids the shared endpoint that imposes it); no network is not one either.
+   */
+  searchProblemText(error: unknown): string {
+    if (error instanceof GeocodeError && error.status === 429) return uiText('auto.41155237208d')
+    return uiText(routeProblemReason(error) === 'offline' ? 'search.problem.offline' : 'search.problem.service')
   }
 
   /** Move the keyboard cursor over the hit list, wrapping through −1 ("no hit
@@ -1691,6 +1709,25 @@ export class MapStore {
     this.setStops([this.liveLocationStop(), destination])
     if (this.liveLocation) this.originSeeded = true
     this.markSession()
+  }
+
+  /**
+   * Directions to a point the user chose on the map or in a list: it becomes
+   * the picked result (pinned, shown in the sidebar's Search tab) and the
+   * destination of a fresh route that starts at the current location.
+   */
+  directionsTo(result: GeoResult): void {
+    this.cancelSearchRequest()
+    this.searchBusy = false
+    this.selectedResult = result
+    this.searchQuery = result.name
+    this.searchResults = []
+    this.searchActiveIndex = -1
+    this.searchMarker = [result.lng, result.lat]
+    this.engine?.setSearchMarker(this.searchMarker)
+    this.panelTab = 'search'
+    this.openDirections()
+    this.emit()
   }
 
   /**
@@ -1936,6 +1973,7 @@ export class MapStore {
     this.planning = false
     this.plan = null
     this.planError = null
+    this.planProblem = null
     this.engine?.setWaypoints([])
     this.engine?.setRoute(null)
     this.emit()
@@ -1949,6 +1987,7 @@ export class MapStore {
       this.planning = false
       this.plan = null
       this.planError = null
+      this.planProblem = null
       this.engine?.setRoute(null)
       this.emit()
       return
@@ -1999,12 +2038,18 @@ export class MapStore {
     const mode = this.plannerMode
     this.planning = true
     this.planError = null
+    this.planProblem = null
     this.emit()
     try {
       await this.requests.run(controller.signal, async request => {
         const settings = this.settings()
         const raw = await planRoute(waypoints, mode, settings, request)
         if (this.disposed || token !== this.planToken) return
+        // Every stop on one spot: the router answers with a zero-length line, which
+        // reads as "nothing happened". Say what is wrong instead.
+        if (raw.distanceM < SAME_PLACE_METERS && waypoints.every(waypoint => haversineMeters([waypoint.lng, waypoint.lat], [waypoints[0].lng, waypoints[0].lat]) < SAME_PLACE_METERS)) {
+          throw new RouteProblem('same-place', 'Start and destination are the same place')
+        }
         // Draw first: the elevation service is a free third party, and the line must
         // never wait on it.
         const snapped = raw.snapped?.length === this.plannerWaypoints.length ? raw.snapped : undefined
@@ -2039,7 +2084,10 @@ export class MapStore {
     } catch (err) {
       if (token === this.planToken) {
         this.plan = null
-        this.planError = err instanceof Error ? err.message : 'Could not compute route'
+        this.planError = err instanceof Error ? readableError(err) : 'Could not compute route'
+        this.planProblem = routeProblemReason(err)
+        // The failed plan's line must not stay on the map as if it were the answer.
+        this.engine?.setRoute(null)
       }
     } finally {
       if (this.planRequest === controller) this.planRequest = null

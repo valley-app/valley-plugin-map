@@ -8,6 +8,8 @@ import { hostAppearance, observeHostAppearance } from './mapStyle'
 import { createMapEngine } from './island'
 import { SharedSearchBox } from './SearchBox'
 import { formatLatLng } from './format'
+import { splitLabel } from './geocode'
+import { CopyText } from './CopyText'
 import type { LngLat, MapLayerId } from './types'
 import { mapLayers } from './settings'
 import {
@@ -21,6 +23,7 @@ import {
   Navigation,
   Plus,
   Road,
+  RouteIcon,
   Satellite,
   Search,
   Sun,
@@ -202,6 +205,16 @@ export const Page: FC<MainWorkspaceViewProps> = ({ instanceId }) => {
     setPlaceName('')
   }
 
+  /** Directions to the clicked point: the left sidebar opens on a route from the current location to it. */
+  const directionsPending = (): void => {
+    if (!pending) return
+    // Without an address the coordinates are the name, whole: their comma is not an address separator.
+    const address = placeName.trim() || pending.name
+    store.directionsTo({ ...(address ? splitLabel(address, '') : { name: formatLatLng(pending.lat, pending.lng) }), lng: pending.lng, lat: pending.lat })
+    api.workspace.revealOwnPanel('left_sidebar')
+    setPending(null)
+    setPlaceName('')
+  }
 
   return (
     <div className="map-page">
@@ -346,24 +359,31 @@ export const Page: FC<MainWorkspaceViewProps> = ({ instanceId }) => {
           <div className="map-overlay-card map-save-card">
             <div className="map-save-head">
               <span className="map-save-icon"><MapPin /></span>
-              <span className="map-save-coords">{formatLatLng(pending.lat, pending.lng)}</span>
+              <CopyText className="map-save-coords" text={formatLatLng(pending.lat, pending.lng)} label={uiText('map.copyCoordinates')}>{formatLatLng(pending.lat, pending.lng)}</CopyText>
               <button className="map-row-action" title={uiText('auto.77dfd2135f4d')} onClick={() => setPending(null)}>
                 <X />
               </button>
             </div>
-            <input
-              className="map-input"
-              placeholder={uiText('auto.8eb815111173')}
-              value={placeName}
-              autoFocus
-              onChange={(e) => setPlaceName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') savePending()
-                else if (e.key === 'Escape') setPending(null)
-              }}
-            />
-            <button className="map-btn map-btn-primary" onClick={savePending}>
-              <Crosshair /> {uiText('auto.e394ba2e21d7')}</button>
+            <div className="map-save-name">
+              <input
+                className="map-input"
+                placeholder={uiText('auto.8eb815111173')}
+                value={placeName}
+                autoFocus
+                onChange={(e) => setPlaceName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') savePending()
+                  else if (e.key === 'Escape') setPending(null)
+                }}
+              />
+              <CopyText text={placeName.trim() || pending.name} label={uiText('place.copyAddress')} />
+            </div>
+            <div className="map-save-actions">
+              <button className="map-btn" onClick={directionsPending}>
+                <RouteIcon /> {uiText('auto.f814a9fb4687')}</button>
+              <button className="map-btn map-btn-primary" onClick={savePending}>
+                <Crosshair /> {uiText('auto.e394ba2e21d7')}</button>
+            </div>
           </div>
         </div>
       )}

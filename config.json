@@ -428,6 +428,10 @@
               "icon": {
                 "type": "string",
                 "maxLength": 64
+              },
+              "color": {
+                "type": "string",
+                "maxLength": 64
               }
             },
             "required": [

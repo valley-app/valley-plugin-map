@@ -35,6 +35,7 @@ Pin artwork lives in `.valley/assets/icons/map-icon/`. The eight bundled SVGs ar
 - `manifest.json`: readable English identity, version, and paired `author` / `authorUrl` arrays.
 - `config.json`: runtime entry points, permissions, contributions, and storage declarations.
 - `src/`: plugin interface and background engine.
+- `src/tabs/<tab>/`: the left sidebar's built-in tabs, one folder each (`search`, `favorite-place`, `favorite-route`, `note-pin`); each exports a `MapTab` description that `src/tabs/index.ts` lists.
 - `src/wasm/`: the GPX/KML reader in Rust (built to `runtime/assets/mapfile.wasm`, declared in `config.json` under `runtime.wasm`).
 - `locales/`: English, German, Spanish, French, and Simplified Chinese catalogs.
 - `tests/`: package-owned checks using the portable SDK testkit.

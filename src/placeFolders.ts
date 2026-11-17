@@ -178,7 +178,7 @@ export const moveItem = movePlace
 export const deleteFolder = deletePlaceFolder
 
 /** Where a saved route sits in the routes tree: its folder and glyph. The setting's order is the tree's order. */
-export type RouteFiling = { id: string; folder?: string; icon?: string }
+export type RouteFiling = { id: string; folder?: string; icon?: string; color?: string }
 
 export function normalizeRouteFiling(value: unknown): RouteFiling[] {
   if (!Array.isArray(value)) return []
@@ -186,10 +186,10 @@ export function normalizeRouteFiling(value: unknown): RouteFiling[] {
   const filing: RouteFiling[] = []
   for (const entry of value) {
     if (!entry || typeof entry !== 'object') continue
-    const { id, folder, icon } = entry as Record<string, unknown>
+    const { id, folder, icon, color } = entry as Record<string, unknown>
     if (typeof id !== 'string' || !id || seen.has(id)) continue
     seen.add(id)
-    filing.push({ id, ...(typeof folder === 'string' && folder ? { folder } : {}), ...(typeof icon === 'string' && icon ? { icon } : {}) })
+    filing.push({ id, ...(typeof folder === 'string' && folder ? { folder } : {}), ...(typeof icon === 'string' && icon ? { icon } : {}), ...(typeof color === 'string' && color ? { color } : {}) })
   }
   return filing
 }
@@ -211,12 +211,20 @@ export function filedRoutes<R extends { id: string }>(routes: readonly R[], fili
 
 /** The setting value for a tree: one entry per route, without empty fields. */
 export function routeFiling(items: readonly RouteFiling[]): RouteFiling[] {
-  return items.map(({ id, folder, icon }) => ({ id, ...(folder ? { folder } : {}), ...(icon ? { icon } : {}) }))
+  return items.map(({ id, folder, icon, color }) => ({ id, ...(folder ? { folder } : {}), ...(icon ? { icon } : {}), ...(color ? { color } : {}) }))
 }
 
-/** The colour a route line is drawn in: its folder's, else its parent folder's. */
+/** The colour a route line is drawn in: the colour of the folder it is filed in, never the folder above that one. */
 export function folderColor(folders: readonly PlaceFolder[], id: string | undefined): string | undefined {
-  const folder = id ? folders.find(entry => entry.id === id) : undefined
-  if (!folder) return undefined
-  return folder.color ?? (folder.parent ? folders.find(entry => entry.id === folder.parent)?.color : undefined)
+  return id ? folders.find(entry => entry.id === id)?.color : undefined
+}
+
+/**
+ * The glyph and colour an item is drawn with. Outside every folder it is the
+ * item's own; inside a folder it is that folder's own icon and colour, never
+ * the item's and never those of the folder above.
+ */
+export function itemLook(folders: readonly PlaceFolder[], item: { folder?: string; icon?: string; color?: string }): { icon?: string; color?: string } {
+  const folder = item.folder ? folders.find(entry => entry.id === item.folder) : undefined
+  return folder ? { icon: folder.icon, color: folder.color } : { icon: item.icon, color: item.color }
 }

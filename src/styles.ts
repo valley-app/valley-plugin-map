@@ -411,68 +411,34 @@ const CSS = `
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .map-place-coords { margin-top:-2px; font-size:0.6875rem; color:var(--text-tertiary, var(--text-secondary));
   font-variant-numeric:tabular-nums; }
+/* Address and coordinates copy themselves on a click: the line keeps its look,
+   the copy glyph shows on hover (always on a touch of the keyboard) and turns
+   into a check once the text is on the clipboard. */
+.map-copy { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; padding:0; border:none; background:none;
+  font-family:inherit; font-weight:inherit; line-height:inherit; text-align:left; cursor:pointer; }
+.map-copy-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-copy-icon { display:grid; place-items:center; flex:0 0 auto; opacity:0; color:var(--text-secondary); }
+.map-copy-icon svg { width:12px; height:12px; }
+.map-copy:hover .map-copy-icon, .map-copy:focus-visible .map-copy-icon, .map-copy.is-copied .map-copy-icon, .map-copy.is-icon .map-copy-icon { opacity:1; }
+.map-copy:hover { color:var(--text-color); }
+.map-copy.is-copied .map-copy-icon { color:var(--tint-green-text, var(--text-color)); }
+.map-copy.is-icon { flex:0 0 auto; padding:3px; border-radius:4px; color:var(--text-secondary); }
+.map-copy.is-icon:hover { background:var(--hover-bg); }
+.map-copy.is-icon .map-copy-icon svg { width:14px; height:14px; }
+.map-copy:disabled { cursor:default; opacity:.5; }
+button.map-place-sub, button.map-place-coords { align-self:flex-start; }
 /* min-width:0 or the labels refuse to shrink and the row spills out of the card. */
 .map-place-actions { display:flex; gap:5px; min-width:0; }
 .map-place-actions .map-btn { flex:1 1 0; min-width:0; padding:5px 8px; font-size:0.71875rem;
   white-space:nowrap; overflow:hidden; }
 .map-place-actions .map-btn:last-child { flex:0 0 auto; padding:5px 9px; }
-.map-place-actions .map-btn.active { border-color:var(--accent-color);
-  color:var(--accent-tint-text, var(--accent-color)); background:var(--accent-tint-bg); }
+/* A switched-on action wears the selected look of the sidebar's tab strip: the
+   tinted fill with the title colour, never an accent border or accent text. */
+.map-place-actions .map-btn.active, .map-place-actions .map-btn.active:hover:not(:disabled) { border-color:transparent;
+  color:var(--title-color); background:var(--accent-tint-bg); }
 /* Saved reads at a glance: the bookmark fills instead of only changing colour. */
-.map-place-actions .map-btn.active svg { fill:currentColor; }
+.map-place-actions .map-btn.is-saved svg { fill:currentColor; }
 
-/* ---- route stop spine (shared by both sidebars' route card) ----------- */
-/* One glyph column (hollow ring → filled pin), a dotted spine joining the rows
-   inside it, a label/field to its right, and the ⇅ beside the whole block. The
-   entire row is the drag handle — no grip glyph stealing the left column. */
-.map-dir-stops { flex:1; min-width:0; display:flex; flex-direction:column; }
-/* min-height 30px is load-bearing: the spine offsets below are derived from it
-   (row centre 15px, ±9px clearance around the glyph). Change one, change both. */
-.map-dir-row { position:relative; display:flex; align-items:center; gap:6px; min-width:0;
-  min-height:30px; padding:0 2px 0 0; border-radius:6px; }
-.map-dir-row:not(:last-child)::before { content:''; position:absolute; left:8px; width:2px;
-  top:24px; bottom:-6px; border-radius:1px;
-  background-image:repeating-linear-gradient(to bottom,
-    var(--border-medium) 0 2px, transparent 2px 6px); }
-.map-dir-row:hover { background:var(--hover-bg); }
-.map-dir-row:focus-visible { outline:1px solid var(--accent-color); outline-offset:-1px; }
-/* The shared horizontal insertion marker, restated under this prefix (a plugin
-   never borrows a core class). Geometry stays on the --drop-* tokens; the
-   spine already owns ::before, so this seam draws on ::after. */
-.map-dir-row.is-drop-target::after { content:''; position:absolute; left:0; right:0; top:-1px;
-  height:var(--drop-knob); margin-top:var(--drop-indicator-inset);
-  background:var(--drop-indicator-fill); pointer-events:none; }
-/* The one column every glyph shares — the start ring, the vias, the finish flag
-   and the ⊕ of "Add via" all land on the same centre line, at one size. The old
-   column mixed an 11px ring with a 15px pin, so the two ends of the same spine
-   read as different weights. */
-.map-dir-glyph { flex:0 0 18px; height:18px; display:grid; place-items:center;
-  color:var(--text-tertiary, var(--text-secondary)); }
-.map-dir-glyph svg { width:13px; height:13px; }
-/* The flag's artwork is tall and narrow inside a square viewBox, so it needs a
-   larger box to reach the ring's optical height — 18px of box is ~15px of flag. */
-.map-dir-glyph[data-kind="dest"] { color:var(--tint-red-text, #b91c1c); }
-.map-dir-glyph[data-kind="dest"] svg { width:18px; height:18px; }
-.map-dir-label { flex:1; min-width:0; font-size:0.78125rem; color:var(--text-color);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.map-dir-swap { flex:0 0 auto; display:grid; place-items:center; width:26px; height:26px; padding:0;
-  border:none; border-radius:50%; background:none; color:var(--text-tertiary, var(--text-secondary));
-  cursor:pointer; }
-.map-dir-swap svg { width:15px; height:15px; }
-.map-dir-swap:hover { background:var(--hover-bg); color:var(--text-color); }
-.map-add-stop-btn { display:flex; align-items:center; gap:6px; align-self:flex-start;
-  min-height:26px; margin:0; padding:0 6px 0 0; border:none; border-radius:6px; background:none;
-  color:var(--text-secondary); font-size:0.75rem; cursor:pointer; }
-/* Cloned row handed to setDragImage: parked offscreen for the frame the browser
-   needs to snapshot it, so the ghost keeps the row's radius and surface. */
-.map-drag-ghost { position:fixed; top:-9999px; left:-9999px; pointer-events:none; box-sizing:border-box;
-  border-radius:7px; overflow:hidden; background:var(--surface-color);
-  border:1px solid var(--border-medium); box-shadow:0 6px 18px rgba(0,0,0,.22); }
-.map-add-stop-btn:hover { background:var(--hover-bg); color:var(--text-color); }
-.map-dir-field { flex:1; min-width:0; display:flex; align-items:center; gap:4px; }
-.map-dir-field .map-search { flex:1; min-width:0; }
-.map-dir-fav { opacity:.7; }
-.map-dir-fav:hover { opacity:1; }
 .map-section-count { font-variant-numeric:tabular-nums; color:var(--text-tertiary, var(--text-secondary)); }
 
 .map-row { display:flex; align-items:center; gap:8px; padding:5px 10px; cursor:pointer; min-width:0; }
@@ -519,6 +485,9 @@ const CSS = `
 .map-tree-slot svg { width:12px; height:12px; transition:transform .12s ease; }
 .map-folder-chevron.open svg { transform:rotate(90deg); }
 .map-folder-icon { color:var(--text-secondary); }
+/* A row inside a folder has no glyph of its own: its name starts under the folder's name
+   (6px inset + chevron slot 10px + 8px gap + 15px glyph + 8px gap, one level up). */
+.map-tree-row.is-filed { padding-left:calc(31px + var(--map-tree-depth, 0) * 16px); }
 .map-place-icon-btn { border:none; background:none; padding:0; font:inherit; cursor:pointer; border-radius:4px; }
 .map-row-icon.map-place-icon-btn { width:20px; height:20px; margin:-2px; }
 .map-place-icon-btn:hover { background:var(--container-color-alt); }
@@ -636,7 +605,7 @@ const CSS = `
   box-shadow:0 0 0 var(--focus-ring-width) var(--search-field-focus-ring); }
 /* Inside the capsule the cap loses its own outline — one shape, one shadow. */
 .map-overlay-top.is-open .map-round-btn { border:none; box-shadow:none; background:none;
-  color:var(--accent-color); margin:-1px 0 -1px -1px; }
+  color:var(--title-color); margin:-1px 0 -1px -1px; }
 .map-overlay-top.is-open .map-round-btn:hover { background:none; }
 .map-search-pill { flex:1; min-width:0; }
 .map-search-pill .map-search-field { height:calc(var(--search-field-height) - 2 * var(--border-width));
@@ -665,8 +634,7 @@ const CSS = `
   font-weight:500; color:var(--text-secondary); }
 .map-segment-btn svg { width:14px; height:14px; }
 .map-segment-btn:hover:not(:disabled) { color:var(--text-color); }
-.map-segment-btn.active { background:var(--surface-color); color:var(--accent-color);
-  box-shadow:0 1px 2px rgba(0,0,0,.12); }
+.map-segment-btn.active { background:var(--accent-tint-bg); color:var(--title-color); }
 .map-segment-btn:disabled { opacity:.45; cursor:not-allowed; }
 
 /* ---- round map controls (zoom + layer picker + search) --------------- */
@@ -677,7 +645,10 @@ const CSS = `
   cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.18); flex:0 0 auto; }
 .map-round-btn svg { width:16px; height:16px; }
 .map-round-btn:hover { background:var(--container-color-light); }
-.map-round-btn.active { color:var(--accent-color); border-color:var(--accent-color); }
+/* Switched on: the tab strip's selected look. The tint is laid over the opaque
+   surface, so the tiles never show through. */
+.map-round-btn.active, .map-round-btn.active:hover { color:var(--title-color);
+  background:linear-gradient(var(--accent-tint-bg), var(--accent-tint-bg)), var(--surface-color); }
 .map-round-btn.is-locked { color:var(--text-tertiary, var(--text-secondary)); opacity:.55; }
 .map-layers { position:relative; display:grid; place-items:center; }
 /* The style choices are plain circles continuing the button stack — no card. */
@@ -693,6 +664,10 @@ const CSS = `
 .map-save-icon { color:var(--accent-color); display:grid; place-items:center; }
 .map-save-icon svg { width:15px; height:15px; }
 .map-save-coords { flex:1; font-size:0.6875rem; color:var(--text-secondary); font-variant-numeric:tabular-nums; }
+.map-save-name { display:flex; align-items:center; gap:4px; min-width:0; }
+.map-save-name .map-input { flex:1; min-width:0; }
+.map-save-actions { display:flex; gap:6px; min-width:0; }
+.map-save-actions .map-btn { flex:1 1 0; min-width:0; white-space:nowrap; }
 
 .map-input { width:100%; padding:7px 9px; border:1px solid var(--border-medium); border-radius:7px;
   background:var(--container-color-alt); color:var(--text-color); font-size:0.78125rem; outline:none; }
@@ -713,27 +688,26 @@ const CSS = `
 .map-mode .map-segment-btn svg { width:18px; height:18px; }
 
 /* ---- route card (shared: sidebar directions + right-sidebar planner) --- */
-.map-rc { display:flex; flex-direction:column; gap:var(--space-3); min-width:0;
-  padding:var(--space-3); border-radius:var(--radius-lg); border:1px solid var(--border-light);
-  background:var(--container-color-alt); }
-/* Nested inside .map-place-card, which already draws a frame — one border,
-   not two: the hairline stands in for it. */
-.map-rc--panel { gap:var(--space-2); padding:var(--space-2) 0 0; border:none; border-radius:0;
-  border-top:1px solid var(--border-light); background:none; }
+/* No frame of its own: the travel modes, the journey form's card, the result
+   and Start stack as siblings, the way a timetable tab lays out its planner. */
+.map-rc { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.map-rc .map-journey-body { padding:0; }
+.map-rc .map-journey-body > .map-empty { padding:2px 2px 0; }
+/* The start filled in from the device's position reads as a place like any other: its ring carries the accent. */
+.map-rc .map-route-stop.is-location input { color:var(--text-color); }
+.map-rc .map-route-stop input { text-overflow:ellipsis; }
+.map-rc-retry { align-self:flex-start; padding:5px 10px; font-size:0.71875rem; }
 
 .map-rc-head { display:flex; align-items:flex-start; gap:var(--space-2); min-width:0; }
 .map-rc-headtext { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .map-rc-title { font-size:0.875rem; font-weight:700; color:var(--title-color);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.map-rc--panel .map-rc-title { font-size:0.8125rem; }
 .map-rc-sub { font-size:0.6875rem; color:var(--text-tertiary, var(--text-secondary));
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* "Birmenstorf → Sion" — the arrow comes from CSS, never a translated literal.
    Tertiary + normal weight so the two place names carry the line, not the glue. */
 .map-rc-title-to::before { content:'→'; margin:0 5px; font-weight:500;
   color:var(--text-tertiary, var(--text-secondary)); }
-/* "Birmenstorf · Aargau" — the middot comes from CSS, never a translated literal. */
-.map-rc-sub-context::before { content:'·'; margin:0 var(--space-1); }
 .map-rc-close { flex:0 0 auto; display:grid; place-items:center; width:24px; height:24px; padding:0;
   border:none; border-radius:50%; background:var(--container-color-light); color:var(--text-secondary);
   cursor:pointer; transition:background var(--duration-fast) var(--ease-out),
@@ -743,6 +717,7 @@ const CSS = `
 
 /* The hero: big numerals, small unit words, muted distance chip beside them. */
 .map-rc-hero { display:flex; align-items:center; gap:var(--space-2); flex-wrap:wrap; min-width:0;
+  padding:9px 10px; border:1px solid var(--border-light); border-radius:8px; background:var(--container-color-alt);
   transition:opacity .12s ease; }
 /* Re-planning: the previous answer stays put and dims. Never display:none and
    never a conditional mount — this row is 30px tall and the card jumps without
@@ -758,34 +733,16 @@ const CSS = `
 .map-rc-chip { flex:0 0 auto; padding:3px var(--space-2); border-radius:999px;
   background:var(--container-color-light); color:var(--text-secondary);
   font-size:0.71875rem; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.map-rc-rule { height:1px; margin:0; border:none; background:var(--border-light); }
 
-/* The spine's rows grow a frame here. The glyph column keeps its geometry, so
-   the dotted connector follows the new left padding:
-   glyph centre = padding-left(8) + 18/2 = 17 → spine left:16px (width 2). */
-.map-rc-spine { display:flex; align-items:center; gap:var(--space-1); min-width:0; }
-.map-rc .map-dir-row { padding:0 var(--space-1) 0 var(--space-2);
-  border:1px solid var(--border-light); border-radius:var(--radius); background:var(--surface-color); }
-.map-rc .map-dir-row + .map-dir-row { margin-top:var(--space-2); }
-.map-rc .map-dir-row:not(:last-child)::before { left:16px; top:26px; bottom:-10px; }
-.map-rc .map-add-stop-btn { padding-left:var(--space-2); }
-/* The framed row shows focus on its own border. The flat field's accent
-   underline used to draw that line a second time, full-width under the input. */
-.map-rc .map-search.is-flat .map-search-field:focus-within { box-shadow:none; }
-.map-rc .map-dir-row:focus-within { border-color:var(--search-field-focus);
-  box-shadow:0 0 0 var(--focus-ring-width) var(--search-field-focus-ring); }
+.map-rc-start { width:100%; min-width:0; padding-top:9px; padding-bottom:9px; }
 
-/* Start is the whole footer — saving lives on the bookmark above the card. */
-.map-rc-foot { display:flex; min-width:0; }
-.map-rc-start { flex:1; min-width:0; padding-top:9px; padding-bottom:9px; }
-
-/* Turn-by-turn. Back reuses ChevronRight flipped — no icon just for one arrow. */
+/* Turn-by-turn. */
 .map-rc-back { align-self:flex-start; display:inline-flex; align-items:center; gap:var(--space-1);
   padding:var(--space-1) var(--space-2) var(--space-1) var(--space-1); border:none;
   border-radius:var(--radius-sm); background:none; color:var(--text-secondary);
   font-size:0.75rem; font-weight:600; cursor:pointer; }
 .map-rc-back:hover { background:var(--hover-bg); color:var(--text-color); }
-.map-rc-back svg { width:14px; height:14px; transform:rotate(180deg); }
+.map-rc-back svg { width:14px; height:14px; }
 .map-rc-steps { display:flex; flex-direction:column; margin:0; padding:0; list-style:none;
   min-width:0; border:1px solid var(--border-light); border-radius:var(--radius);
   background:var(--surface-color); overflow:hidden; }

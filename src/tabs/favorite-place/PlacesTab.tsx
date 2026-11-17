@@ -1,13 +1,11 @@
-import { React, api } from './runtime'
+import { React, api } from '../../runtime'
 import type { DragEvent, FC, MouseEvent as ReactMouseEvent, ReactElement } from 'react'
-import type { UiMenuItem, UiMenuTarget } from '@valley/plugin-sdk'
+import type { UiMenuItem } from '@valley/plugin-sdk'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
-import { useMap } from './hooks'
-import { formatLatLng } from './format'
-import type { LngLat, Place, PlaceFolder } from './types'
-import { uiText } from './localization'
-import { PinIconGrid } from './SettingsView'
-import { mapIconIds, refreshMapIcons } from './pinIcons'
+import { useMap } from '../../hooks'
+import { formatLatLng } from '../../format'
+import type { LngLat, Place, PlaceFolder } from '../../types'
+import { uiText } from '../../localization'
 import {
   addPlaceFolder,
   deletePlaceFolder,
@@ -21,7 +19,8 @@ import {
   PLACE_FOLDER_NAME_MAX,
   subfolders,
   type PlaceDrop
-} from './placeFolders'
+} from '../../placeFolders'
+import { ColorDot, FolderGlyph, filed, iconSubmenu, menuTarget, pickColor, pickIcon, rowIconAnchor, strings, useSetting } from '../shared/tree'
 import {
   ChevronRight,
   ChevronsDownUp,
@@ -36,65 +35,18 @@ import {
   MoreHorizontal,
   Pencil,
   MenuPinGlyph,
-  PIN_GLYPHS,
   PinGlyph,
   Plus,
   TextCursorInput,
   Trash,
   ValleyIcon
-} from './icons'
+} from '../../icons'
 
 type Dragged = { kind: 'place' | 'folder'; id: string }
 type DropMark = { key: string; position: 'before' | 'after' | 'inside' }
 
-export const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
-
-/** A value saved in a hidden plugin setting; a failed write falls back to what is saved. */
-export function useSetting<T>(key: string, normalize: (value: unknown) => T): [T, (next: T) => Promise<void>] {
-  const read = (): T => normalize(api.settings.get()[key])
-  const [value, setValue] = React.useState(read)
-  React.useEffect(() => api.settings.subscribe(() => setValue(read())), [])
-  const write = React.useCallback(async (next: T): Promise<void> => {
-    setValue(next)
-    const result = await api.settings.set(key, next).catch(() => ({ ok: false }))
-    if (!result.ok) { setValue(read()); throw new Error(uiText('places.folders.saveError')) }
-  }, [])
-  return [value, write]
-}
-
-/** Opens the map icon grid under `anchor`; the chosen glyph replaces the place's icon.
- *  The pin is the default glyph, so choosing it clears the icon (`''`). */
-export function pickIcon(anchor: HTMLElement, selected: string, onSelect: (id: string) => void, defaultId = 'pin'): void {
-  void refreshMapIcons()
-  void api.ui.openPopover(ctx => <PinIconGrid selected={selected} onSelect={id => { onSelect(id === defaultId ? '' : id); ctx.close() }} />,
-    { anchor }, { className: 'map-pin-icon-popover', ariaLabel: uiText('places.icon.change') })
-}
-
-const iconLabel = (id: string): string => {
-  const glyph = PIN_GLYPHS.find(entry => entry.id === id)
-  return glyph ? uiText(glyph.labelKey) : id.replace(/[-_]/g, ' ')
-}
-
-/** Change icon as a submenu: every map icon by name, the current one checked. The default glyph clears the icon (`''`). */
-export function iconSubmenu(selected: string | undefined, defaultId: string, onPick: (id: string) => void): UiMenuItem[] {
-  const current = selected || defaultId
-  return mapIconIds().sort((a, b) => iconLabel(a).localeCompare(iconLabel(b))).map(id => ({
-    id: `icon:${id}`, label: iconLabel(id), icon: <MenuPinGlyph id={id} />, type: 'radio' as const, checked: id === current,
-    onSelect: () => { if (id !== current) onPick(id === defaultId ? '' : id) }
-  }))
-}
-
 const PlaceIcon: FC<{ place: Pick<Place, 'icon' | 'color'> }> = ({ place }) =>
   place.icon ? <PinGlyph id={place.icon} /> : <MapPin />
-
-/** A menu item's leading colour disc; dashed while no colour is chosen. */
-export const ColorDot: FC<{ color?: string }> = ({ color }) => (
-  <svg width="1em" height="1em" viewBox="0 0 16 16" aria-hidden="true">
-    {color
-      ? <circle cx="8" cy="8" r="6.5" style={{ fill: paletteCssValue(color) }} />
-      : <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.2" strokeDasharray="2.4 2" />}
-  </svg>
-)
 
 /** The folder field's value for "no folder"; never a folder id (those start with `folder-`). */
 const TOP_LEVEL = 'top-level'
@@ -105,10 +57,6 @@ const folderOptions = (folders: readonly PlaceFolder[]): { value: string; label:
     { value: folder.id, label: folder.name },
     ...subfolders(folders, folder.id).map(child => ({ value: child.id, label: `${folder.name} / ${child.name}` }))
   ])
-
-/** The row's ⋯ menu opens under the button; a right-click opens it at the pointer. */
-export const menuTarget = (event: ReactMouseEvent<HTMLElement>): UiMenuTarget =>
-  event.type === 'contextmenu' ? { x: event.clientX, y: event.clientY } : { anchor: event.currentTarget, align: 'end' }
 
 /**
  * Add a favourite place by hand, or edit one already saved, in the host modal.
@@ -167,11 +115,14 @@ export const PlaceEditor: FC<{ place?: Place; folders: readonly PlaceFolder[]; o
       }
     >
       <div className="map-place-name-row">
-        <button type="button" className="map-place-icon-btn" aria-label={uiText('places.icon.change')} title={uiText('places.icon.change')}
-          style={color ? { color: paletteCssValue(color) } : undefined}
-          onClick={event => pickIcon(event.currentTarget, icon || 'pin', setIcon)}>
-          <PlaceIcon place={{ icon, color }} />
-        </button>
+        {/* A place in a folder wears the folder's icon and colour; its own are kept for when it leaves the folder. */}
+        {!folder && (
+          <button type="button" className="map-place-icon-btn" aria-label={uiText('places.icon.change')} title={uiText('places.icon.change')}
+            style={color ? { color: paletteCssValue(color) } : undefined}
+            onClick={event => pickIcon(event.currentTarget, icon || 'pin', setIcon)}>
+            <PlaceIcon place={{ icon, color }} />
+          </button>
+        )}
         <input
           className="map-input"
           placeholder={uiText('auto.8eb815111173')}
@@ -222,29 +173,16 @@ export const PlaceEditor: FC<{ place?: Place; folders: readonly PlaceFolder[]; o
         <span>{uiText('surface.category')}</span>
         <input className="map-input" value={category} onChange={(event) => setCategory(event.target.value)} />
       </label>
-      <div className="map-editor-field">
-        <span>{uiText('surface.color')}</span>
-        <ColorField value={color} unset={!color} ariaLabel={uiText('surface.color')} onChange={setColor} />
-      </div>
+      {!folder && (
+        <div className="map-editor-field">
+          <span>{uiText('surface.color')}</span>
+          <ColorField value={color} unset={!color} ariaLabel={uiText('surface.color')} onChange={setColor} />
+        </div>
+      )}
       {error && <p role="alert" className="settings-path-error">{uiText('surface.invalid')}</p>}
     </api.ui.Modal>
   )
 }
-
-/** Opens the palette under `anchor`; `''` clears the colour. */
-export function pickColor(anchor: HTMLElement, selected: string, onSelect: (value: string) => void): void {
-  // Opened from a menu item: wait until the menu has closed and handed focus back, or the
-  // popover takes that focus change for the window losing focus and dismisses itself at once.
-  setTimeout(() => openPalette(anchor, selected, onSelect), 80)
-}
-
-function openPalette(anchor: HTMLElement, selected: string, onSelect: (value: string) => void): void {
-  void api.ui.pickColor({ value: selected, clearable: true, ariaLabel: uiText('surface.color') }, { anchor }).then(value => { if (value !== null && value !== selected) onSelect(value) })
-}
-
-/** The folder row's glyph, the anchor of its icon and colour popovers. */
-export const rowIconAnchor = (event: ReactMouseEvent<HTMLElement>): HTMLElement =>
-  (event.currentTarget.closest('.map-tree-row')?.querySelector('.map-row-icon') as HTMLElement | null) ?? event.currentTarget
 
 /** The Favourite Places tab: folders (one subfolder level) and places, all draggable. */
 export const PlacesTab: FC = () => {
@@ -405,10 +343,15 @@ export const PlacesTab: FC = () => {
   const openPlaceMenu = (event: ReactMouseEvent<HTMLElement>, place: Place): void => {
     event.preventDefault()
     event.stopPropagation()
+    const anchor = rowIconAnchor(event)
     void api.ui.openMenu([
       { id: 'edit', label: uiText('auto.e1746f2c11b3'), icon: <Pencil />, onSelect: () => { store.selectPlace(place.id); setEditing(place.id) } },
       { id: 'rename', label: uiText('places.menu.rename'), icon: <TextCursorInput />, onSelect: () => setRenaming(`place:${place.id}`) },
-      { id: 'icon', label: uiText('places.icon.change'), icon: place.icon ? <MenuPinGlyph id={place.icon} /> : <MapPin />, submenu: iconSubmenu(place.icon, 'pin', icon => { void store.updatePlace(place.id, { icon: icon || undefined }).catch(fail) }) },
+      // Icon and colour belong to a place only while it is outside every folder.
+      ...(filed(folders, place.folder) ? [] : [
+        { id: 'icon', label: uiText('places.icon.change'), icon: place.icon ? <MenuPinGlyph id={place.icon} /> : <MapPin />, submenu: iconSubmenu(place.icon, 'pin', icon => { void store.updatePlace(place.id, { icon: icon || undefined }).catch(fail) }) },
+        { id: 'color', label: uiText('surface.color'), icon: <ColorDot color={place.color} />, onSelect: () => pickColor(anchor, place.color ?? '', color => { void store.updatePlace(place.id, { color: color || undefined }).catch(fail) }) }
+      ]),
       { id: 'move', label: uiText('places.menu.move'), icon: <FolderInput />, enabled: folders.length > 0, submenu: moveMenu(place) },
       { type: 'separator' },
       { id: 'focus', label: uiText('auto.e4ab9c39375b'), icon: <Crosshair />, onSelect: () => store.focusPlace(place) },
@@ -461,16 +404,20 @@ export const PlacesTab: FC = () => {
   // ---- rows ----
   const placeRow = (place: Place, depth: number): ReactElement => {
     const key = `place:${place.id}`
+    // Rows inside a folder carry no glyph of their own: the folder speaks for them.
+    const inFolder = filed(folders, place.folder)
     return (
-      <div key={place.id} className={`map-row map-tree-row${snap.selectedPlaceId === place.id ? ' active' : ''}${shownOnMap(place) ? '' : ' is-hidden'}${markClass(key)}`}
+      <div key={place.id} className={`map-row map-tree-row${inFolder ? ' is-filed' : ''}${snap.selectedPlaceId === place.id ? ' active' : ''}${shownOnMap(place) ? '' : ' is-hidden'}${markClass(key)}`}
         style={{ ['--map-tree-depth' as string]: depth }}
         onClick={() => { if (renaming !== key) store.focusPlace(place) }} role="button" tabIndex={0}
         onContextMenu={(event) => openPlaceMenu(event, place)}
         {...dragProps('place', place.id)} {...dropProps('place', place.id)}>
-        <span className="map-tree-slot" />
-        <span className="map-row-icon" style={place.color ? { color: paletteCssValue(place.color) } : undefined}>
-          <PlaceIcon place={place} />
-        </span>
+        {!inFolder && <>
+          <span className="map-tree-slot" />
+          <span className="map-row-icon" style={place.color ? { color: paletteCssValue(place.color) } : undefined}>
+            <PlaceIcon place={place} />
+          </span>
+        </>}
         {renaming === key
           ? nameField(key, place.name, undefined, uiText('auto.8eb815111173'), name => renamePlace(place, name))
           : <span className="map-row-title">{place.name}</span>}
@@ -497,7 +444,7 @@ export const PlacesTab: FC = () => {
         onContextMenu={(event) => openFolderMenu(event, folder)}
         {...dragProps('folder', folder.id)} {...dropProps('folder', folder.id)}>
         <span className={`map-tree-slot map-folder-chevron${folded ? '' : ' open'}`}><ChevronRight /></span>
-        <span className="map-row-icon map-folder-icon" style={folder.color ? { color: paletteCssValue(folder.color) } : undefined}>{folder.icon ? <PinGlyph id={folder.icon} /> : <Folder />}</span>
+        <span className="map-row-icon map-folder-icon" style={folder.color ? { color: paletteCssValue(folder.color) } : undefined}><FolderGlyph folder={folder} open={!folded} /></span>
         {renaming === key
           ? nameField(key, folder.name, PLACE_FOLDER_NAME_MAX, uiText('places.folders.name'), name => renameFolder(folder.id, name))
           : <span className="map-row-title">{folder.name}</span>}

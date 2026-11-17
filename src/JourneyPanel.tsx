@@ -377,11 +377,15 @@ function useStopReorder(stops: MapSidebarRouteStop[], reorder: string | undefine
  * station tiles. Every piece is optional; the provider decides what shows. With
  * `look: 'sbb'` the Map draws it in the SBB app's colours and badges.
  */
-export function JourneyPanel({ extension, snapshot, run, pending }: {
+export function JourneyPanel({ extension, snapshot, run, pending, onStopEnter, onStopBlur }: {
   extension: MapSidebarTab
   snapshot: MapSidebarSnapshot
   run: (action: string, values?: Record<string, string>) => void
   pending: boolean
+  /** Map's own planner: Enter in a stop field (with its text), instead of the route's submit. */
+  onStopEnter?: (stopId: string, text: string) => void
+  /** Map's own planner: a stop field lost focus. */
+  onStopBlur?: (stopId: string) => void
 }): ReactElement {
   const sbb = snapshot.look === 'sbb'
   const stops = snapshot.route?.stops ?? []
@@ -483,11 +487,12 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
                     </span>
                     <input ref={element => { inputs.current[stop.id] = element }} value={values[stop.id] ?? ''} placeholder={stop.placeholder} aria-label={stop.label} maxLength={200}
                       onFocus={(event) => { editing.current = stop.id; setStopFocus(true); if (stop.location) event.currentTarget.select(); run(`focus:${stop.id}`) }}
-                      onBlur={() => { setStopFocus(false); if (editing.current === stop.id) editing.current = null }}
+                      onBlur={() => { setStopFocus(false); if (editing.current === stop.id) editing.current = null; onStopBlur?.(stop.id) }}
                       onChange={(event) => change(stop, event.target.value)}
                       onKeyDown={(event) => {
                         if (order.keyDown(stop, event)) return
                         if (event.key === 'Escape' && suggesting) { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); return }
+                        if (event.key === 'Enter' && onStopEnter) { event.preventDefault(); editing.current = null; clearTimeout(typing.current); onStopEnter(stop.id, values[stop.id] ?? ''); return }
                         if (event.key === 'Enter' && snapshot.route?.submit && !snapshot.route.submit.disabled) { event.preventDefault(); act(snapshot.route.submit.action) }
                       }} />
                   </label>

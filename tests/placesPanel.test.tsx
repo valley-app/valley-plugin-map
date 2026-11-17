@@ -356,7 +356,7 @@ describe('Favourite places: add and edit by hand', () => {
     expect(screen.queryByRole('button', { name: 'Edit place' })).toBeNull()
     await act(async () => { fireEvent.click(more) })
     const items = mock.menus.at(-1) ?? []
-    expect(items.map(item => item.id)).toEqual(['edit', 'rename', 'icon', 'move', undefined, 'focus', undefined, 'delete'])
+    expect(items.map(item => item.id)).toEqual(['edit', 'rename', 'icon', 'color', 'move', undefined, 'focus', undefined, 'delete'])
     expect(items.filter(item => item.id).every(item => item.icon)).toBe(true)
 
     await chooseFromMenu(mock, more, 'edit')

@@ -1,11 +1,11 @@
-import { React, api } from './runtime'
+import { React, api } from '../../runtime'
 import type { DragEvent, FC, MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { UiMenuTarget } from '@valley/plugin-sdk'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
-import { useMap } from './hooks'
-import type { NotePin, PinSource } from './types'
-import { uiText } from './localization'
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Crosshair, Eye, EyeOff, MoreHorizontal, PinGlyph, Plus, Settings, ValleyIcon } from './icons'
+import { useMap } from '../../hooks'
+import type { NotePin, PinSource } from '../../types'
+import { uiText } from '../../localization'
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Crosshair, Eye, EyeOff, MoreHorizontal, PinGlyph, Plus, Settings, ValleyIcon } from '../../icons'
 
 /** A source's glyph in white on a disc in its own colour — the same look as its pins on the map. */
 const SourceBadge: FC<{ source: Pick<PinSource, 'color' | 'icon'>; small?: boolean }> = ({ source, small }) => (
