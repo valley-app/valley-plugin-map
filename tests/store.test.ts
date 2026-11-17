@@ -246,6 +246,85 @@ describe('MapStore', () => {
     expect(snap.pins[0]).toMatchObject({ relPath: 'migration.md', lat: 11.95, lng: 7.44 })
   })
 
+  it('hides the generic dots while every Map pins eye is closed', async () => {
+    await store.load()
+    const source = { ...defaultPinSource(), id: 'habitats', matchKey: 'type', matchValue: 'habitat' }
+    expect(store.savePinSources([{ ...source, visible: true }])).toBe(true)
+    expect(store.getSnapshot().pins.map(pin => pin.relPath)).toEqual(['migration.md'])
+    store.savePinSources([{ ...source, visible: false }])
+    expect(store.getSnapshot().pins).toEqual([])
+    // A turned-off source whose saved eye is still open is no open eye.
+    store.savePinSources([{ ...source, visible: false }, { ...source, id: 'off', visible: true, hidden: true }])
+    expect(store.getSnapshot().pins).toEqual([])
+    // A source that is turned off has no eye in the sidebar, so it closes nothing.
+    store.savePinSources([{ ...source, visible: false, hidden: true }])
+    expect(store.getSnapshot().pins.map(pin => pin.relPath)).toEqual(['migration.md'])
+  })
+
+  it('never turns the notes of a closed source into generic dots', async () => {
+    disposeStore(store)
+    store = createStore(createMapApi({ indexEntries: [
+      { relPath: 'site.md', title: 'Site', kind: 'note', frontmatter: { type: 'habitat', lat: 12, lng: 8, position: [12, 8] }, mtimeMs: 0 }
+    ] }).api)
+    await store.load()
+    const habitats = { ...defaultPinSource(), id: 'habitats', matchKey: 'type', matchValue: 'habitat', locationMode: 'coordinate' as const, locationField: 'position' }
+    const other = { ...defaultPinSource([habitats]), id: 'other', matchKey: 'type', matchValue: 'nothing', visible: true }
+    store.savePinSources([{ ...habitats, visible: true }, other])
+    expect(store.getSnapshot().sourcePins.map(pin => pin.relPath)).toEqual(['site.md'])
+    expect(store.getSnapshot().pins).toEqual([])
+    store.savePinSources([{ ...habitats, visible: false }, other])
+    expect(store.getSnapshot().sourcePins).toEqual([])
+    expect(store.getSnapshot().pins).toEqual([])
+  })
+
+  it('closes the directions route with the search and leaves a route planned elsewhere alone', async () => {
+    await store.load()
+    store.directionsTo({ name: 'Fern Grove', lng: 8.6, lat: 12.4 })
+    expect(store.getSnapshot()).toMatchObject({ directionsOpen: true, plannerWaypoints: [{ label: 'Fern Grove' }] })
+    store.clearSearch()
+    expect(store.getSnapshot()).toMatchObject({ directionsOpen: false, selectedResult: null, plannerWaypoints: [], plan: null })
+
+    store.setWaypoints(seededRoute.waypoints)
+    store.pickSearchResult({ name: 'Fern Grove', lng: 8.6, lat: 12.4 })
+    store.clearSearch()
+    expect(store.getSnapshot().plannerWaypoints).toHaveLength(2)
+  })
+
+  it('loads many long routes although one host message cannot carry all their lines', async () => {
+    disposeStore(store)
+    const line = Array.from({ length: 40 }, (_, index): LngLat => [8 + index / 1000, 12 + index / 1000])
+    const many = Array.from({ length: 9 }, (_, index) => ({ ...seededRoute, id: `route-${index}`, name: `Route ${index}`, position: index, geometry: line }))
+    const { api } = createMapApi({
+      indexEntries: geoNotes,
+      datasets: {
+        'map.places': [seededPlace as unknown as Record<string, unknown>],
+        'map.routes': many.map(route => ({ ...route, waypoints: undefined }) as unknown as Record<string, unknown>),
+        'map.route_waypoints': many.flatMap(route => route.waypoints.map((waypoint, position) => ({ routeId: route.id, position, ...waypoint })))
+      }
+    })
+    // The host counts every value of a message: here it carries at most two route lines.
+    const dataset = api.data.dataset.bind(api.data)
+    const sizes: number[] = []
+    vi.spyOn(api.data, 'dataset').mockImplementation(((name: string) => {
+      const handle = dataset(name)
+      if (name !== 'routes' && name !== 'map.routes') return handle
+      return { ...handle, query: async (query?: Parameters<typeof handle.query>[0]) => {
+        const page = await handle.query(query)
+        const lines = page.rows.filter(row => Array.isArray(row.geometry)).length
+        sizes.push(lines)
+        if (lines > 2) throw new Error('Plugin UI value is too complex')
+        return page
+      } }
+    }) as typeof api.data.dataset)
+    store = createStore(api)
+    await store.load()
+    const snap = store.getSnapshot()
+    expect(snap.places).toHaveLength(1)
+    expect(snap.routes.map(route => route.id)).toEqual(many.map(route => route.id))
+    expect(snap.routes.every(route => route.geometry?.length === 40 && route.waypoints.length === 2)).toBe(true)
+    expect(Math.max(...sizes)).toBeGreaterThan(2)
+  })
+
   it('restores place and route insertion order independently of record IDs', async () => {
     disposeStore(store)
     const mock = createMapApi({ datasets: {

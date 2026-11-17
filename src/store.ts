@@ -147,12 +147,12 @@ interface RecordStore {
   subscribe(listener: () => void): () => void
 }
 
-async function datasetRows(api: ValleyPluginApi, dataset: string, where?: DatasetWhere): Promise<DatasetRecord[]> {
+async function datasetRows(api: ValleyPluginApi, dataset: string, where?: DatasetWhere, select?: string[]): Promise<DatasetRecord[]> {
   const rows: DatasetRecord[] = []
   let cursor: string | undefined
   do {
     const orderBy = dataset === PLACES_DATASET || dataset === ROUTES_DATASET ? [{ field: 'position', direction: 'asc' as const }] : undefined
-    const page = await api.data.dataset(dataset).query({ where, orderBy, limit: 1000, cursor })
+    const page = await api.data.dataset(dataset).query({ ...(select ? { select } : {}), where, orderBy, limit: 1000, cursor })
     rows.push(...page.rows)
     cursor = page.cursor
   } while (cursor)
@@ -251,14 +251,50 @@ function waypointWrites(route: Route): DatasetTransactionOperation[] {
   }))
 }
 
+/** Every route column except the line itself. */
+const ROUTE_LIST_FIELDS = ['id', 'name', 'mode', 'distanceM', 'durationS', 'note', 'createdAt', 'position']
+const ROUTE_GEOMETRY_CHUNK = 4
+
+/** The host refuses one message that carries too many values or bytes. */
+function tooBigForOneMessage(error: unknown): boolean {
+  return error instanceof Error && /too complex|too large/i.test(error.message)
+}
+
+/**
+ * The saved routes' lines, read apart from the list and a few routes at a time.
+ * A line is thousands of points and one host message carries a bounded number
+ * of values: read with the rows, a larger collection of routes failed the whole
+ * start-up read and the map opened empty. A chunk that is still too big is read
+ * route by route; a route too big on its own is listed without its line.
+ */
+async function routeGeometries(api: ValleyPluginApi, ids: string[]): Promise<Map<string, unknown>> {
+  const lines = new Map<string, unknown>()
+  const read = async (chunk: string[]): Promise<void> => {
+    try {
+      const where: DatasetWhere = chunk.length === 1 ? { id: chunk[0] } : { or: chunk.map((id) => ({ id })) }
+      for (const row of await datasetRows(api, ROUTES_DATASET, where, ['id', 'geometry'])) lines.set(String(row.id), row.geometry)
+    } catch (error) {
+      if (!tooBigForOneMessage(error)) throw error
+      if (chunk.length === 1) return
+      const middle = Math.ceil(chunk.length / 2)
+      await read(chunk.slice(0, middle))
+      await read(chunk.slice(middle))
+    }
+  }
+  for (let start = 0; start < ids.length; start += ROUTE_GEOMETRY_CHUNK) await read(ids.slice(start, start + ROUTE_GEOMETRY_CHUNK))
+  return lines
+}
+
 function routeStore(api: ValleyPluginApi): RecordStore {
   const routes = api.data.dataset(ROUTES_DATASET)
   return {
     read: async () => {
-      const [base, waypoints] = await Promise.all([
-        datasetRows(api, ROUTES_DATASET),
+      const [list, waypoints] = await Promise.all([
+        datasetRows(api, ROUTES_DATASET, undefined, ROUTE_LIST_FIELDS),
         datasetRows(api, WAYPOINTS_DATASET)
       ])
+      const lines = await routeGeometries(api, list.map((row) => String(row.id)))
+      const base = list.map((row): DatasetRecord => ({ ...row, geometry: (lines.get(String(row.id)) ?? null) as DatasetRecord[string] }))
       const byRoute = new Map<unknown, DatasetRecord[]>()
       for (const waypoint of waypoints) {
         const entries = byRoute.get(waypoint.routeId)
@@ -1310,12 +1346,16 @@ export class MapStore {
     for (const pin of all) counts[pin.sourceId] = (counts[pin.sourceId] ?? 0) + 1
     this.sourcePinCounts = counts
     this.sourcePinList = all
-    const shown = new Set(this.pinSources.filter((s) => s.visible).map((s) => s.id))
+    // A source that is turned off has no eye: it shows nothing and does not count as an open eye.
+    const shown = new Set(this.pinSources.filter((s) => s.visible && !s.hidden).map((s) => s.id))
     this.sourcePins = all.filter((p) => shown.has(p.sourceId)).map(pin => ({ ...pin, iconSvg: mapIconSvg(pin.icon, this.api) }))
-    // A note claimed by a source shows as its styled marker — drop it from the
-    // generic purple-dot layer so it isn't pinned twice.
-    const claimed = new Set(this.sourcePins.map((p) => p.relPath))
-    this.pins = parseGeoPins(entries).filter((p) => !claimed.has(p.relPath))
+    // A note a source matches is that source's pin, eye open or closed — it never
+    // falls back to the generic purple dot, so closing an eye hides it. The generic
+    // dots (notes with coordinates that no source matches) follow the Map pins
+    // master eye: with sources set up and every eye closed, nothing is drawn.
+    const claimed = new Set(all.map((p) => p.relPath))
+    const eyesClosed = this.pinSources.some((s) => !s.hidden) && shown.size === 0
+    this.pins = eyesClosed ? [] : parseGeoPins(entries).filter((p) => !claimed.has(p.relPath))
     this.engine?.setSourcePins(this.sourcePins)
     this.engine?.setPins(this.pins)
   }
@@ -1673,9 +1713,12 @@ export class MapStore {
     this.searchError = null
     this.searchActiveIndex = -1
     this.selectedResult = null
+    // Directions opened from the card close with it: their route does not stay on the map.
+    const hadDirections = this.directionsOpen
     this.directionsOpen = false
     this.searchMarker = null
     this.engine?.setSearchMarker(null)
+    if (hadDirections) this.clearPlanner()
     this.emit()
     this.markSession()
   }
@@ -1898,13 +1941,16 @@ export class MapStore {
 
   /** Add a place without registering a core ⌘Z action — for the command bus,
    *  which owns its own revert. Returns the created place. */
-  async createPlaceRaw(input: { name: string; lng: number; lat: number; note?: string }): Promise<Place> {
+  async createPlaceRaw(input: { name: string; lng: number; lat: number; note?: string; color?: string; icon?: string; folder?: string }): Promise<Place> {
     const place: Place = {
       id: genId('place'),
       name: input.name.trim() || 'Untitled place',
       lng: input.lng,
       lat: input.lat,
       note: input.note?.trim() || undefined,
+      ...(input.color ? { color: input.color } : {}),
+      ...(input.icon ? { icon: input.icon } : {}),
+      ...(input.folder ? { folder: input.folder } : {}),
       createdAt: new Date().toISOString()
     }
     if (!await this.rawAddPlace(place)) throw new Error(uiText('surface.invalid'))

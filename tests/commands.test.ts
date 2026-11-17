@@ -394,6 +394,20 @@ describe('mapbox commands', () => {
     expect(h.store.getSnapshot().places.some((p) => p.name === 'Fox Den')).toBe(true)
   })
 
+  it('list-routes answers without the route lines', async () => {
+    const listed = await h.api.commands.execute('map:list-routes', {})
+    expect(listed.ok).toBe(true)
+    const routes = (listed as { value: Array<Record<string, unknown>> }).value
+    expect(routes.length).toBeGreaterThan(0)
+    expect(routes.every(route => !('geometry' in route) && Array.isArray(route.waypoints))).toBe(true)
+  })
+
+  it('save-place files the place in a folder with its icon and colour', async () => {
+    const res = await h.api.commands.execute('map:save-place', { name: 'Fern Café', lat: 12.4, lng: 8.6, folder: 'folder-cafes', icon: 'cafe', color: 'palette:amber' })
+    expect(res.ok).toBe(true)
+    expect(h.store.getSnapshot().places.find(place => place.name === 'Fern Café')).toMatchObject({ folder: 'folder-cafes', icon: 'cafe', color: 'palette:amber' })
+  })
+
   it('update-place edits then reverts', async () => {
     const res = await h.api.commands.execute('map:update-place', { name: 'Fox Den', newName: 'Fern Grove' })
     expect(res.ok).toBe(true)

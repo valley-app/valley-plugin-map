@@ -167,25 +167,28 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       paletteSafe: false,
       sideEffect: 'write',
       input: {
-        schema: { type: 'object', properties: { name: { type: 'string', minLength: 1 }, lat: { type: 'number', minimum: -90, maximum: 90 }, lng: { type: 'number', minimum: -180, maximum: 180 }, note: { type: 'string' } }, required: ['name', 'lat', 'lng'], additionalProperties: false },
+        schema: { type: 'object', properties: { name: { type: 'string', minLength: 1 }, lat: { type: 'number', minimum: -90, maximum: 90 }, lng: { type: 'number', minimum: -180, maximum: 180 }, note: { type: 'string' }, folder: { type: 'string', maxLength: 64 }, icon: { type: 'string', maxLength: 64 }, color: { type: 'string', maxLength: 64 } }, required: ['name', 'lat', 'lng'], additionalProperties: false },
         parse: (raw) => {
           const o = (raw ?? {}) as Record<string, unknown>
           const name = asStr(o.name).trim()
           const lat = asNum(o.lat)
           const lng = asNum(o.lng)
-          if (!name) throw new Error('Usage: map save-place "<name>" --lat <lat> --lng <lng>')
+          if (!name) throw new Error('Usage: map save-place "<name>" --lat <lat> --lng <lng> [--folder <folder id>] [--icon <icon>] [--color <color>]')
           if (lat === undefined || lng === undefined || !isValidLngLat(lng, lat)) throw new Error('save-place needs --lat and --lng')
-          return { name, lat, lng, note: asStr(o.note).trim() || undefined }
+          return { name, lat, lng, note: asStr(o.note).trim() || undefined, folder: asStr(o.folder).trim() || undefined, icon: asStr(o.icon).trim() || undefined, color: asStr(o.color).trim() || undefined }
         },
         fromCli: (args, flags) => ({
           name: (args.join(' ') || asStr(flags.name)).trim(),
           lat: asNum(flags.lat) ?? NaN,
           lng: asNum(flags.lng) ?? NaN,
-          note: asStr(flags.note).trim() || undefined
+          note: asStr(flags.note).trim() || undefined,
+          folder: asStr(flags.folder).trim() || undefined,
+          icon: asStr(flags.icon).trim() || undefined,
+          color: asStr(flags.color).trim() || undefined
         })
       },
-      run: async ({ name, lat, lng, note }) => {
-        const place = await live().createPlaceRaw({ name, lat, lng, note })
+      run: async ({ name, lat, lng, note, folder, icon, color }) => {
+        const place = await live().createPlaceRaw({ name, lat, lng, note, folder, icon, color })
         return {
           value: place,
           revert: {
@@ -570,7 +573,9 @@ export function registerMapboxCommands(api: ValleyPluginApi): () => void {
       menu: false,
       label: 'Map: List saved routes', labelKey: 'auto.2a346d4c3018',
       sideEffect: 'read',
-      run: () => live().getSnapshot().routes,
+      // Without the lines: every route's thousands of points in one answer is more than a host message carries.
+      // `export-route` gives one route's line.
+      run: () => live().getSnapshot().routes.map(({ geometry: _geometry, ...route }) => route),
       formatCli: (routes) =>
         routes.length === 0
           ? 'No saved routes.'
