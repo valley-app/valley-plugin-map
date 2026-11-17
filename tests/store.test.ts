@@ -389,6 +389,7 @@ describe('MapStore', () => {
         setRoute() {},
         setUnits() {},
         setLiveLocation() {},
+        setSidebarOverlay() {},
         setSearchMarker: (c: LngLat | null) => markers.push(c),
         flyTo: (center: LngLat) => flyTo.push(center)
       } as unknown as MapEngine
@@ -521,6 +522,7 @@ type Recorder = {
   flyTo: LngLat[]
   fits: LngLat[][]
   markers: Array<LngLat | null>
+  overlays: unknown[]
 }
 
 function recordingEngine(): Recorder {
@@ -528,7 +530,9 @@ function recordingEngine(): Recorder {
   const flyTo: LngLat[] = []
   const fits: LngLat[][] = []
   const markers: Array<LngLat | null> = []
+  const overlays: unknown[] = []
   const engine = {
+    setSidebarOverlay: (overlay: unknown) => overlays.push(overlay),
     setPlaces() {},
     setPins() {},
     setSourcePins() {},
@@ -543,7 +547,7 @@ function recordingEngine(): Recorder {
     fitTo: (coords: LngLat[]) => fits.push(coords),
     jumpTo: (center: LngLat, zoom: number, bearing = 0, pitch = 0) => jumps.push([center, zoom, bearing, pitch])
   } as unknown as MapEngine
-  return { engine, jumps, flyTo, fits, markers }
+  return { engine, jumps, flyTo, fits, markers, overlays }
 }
 
 function seeded(view?: Record<string, unknown>, session?: Record<string, unknown>): {
@@ -1184,6 +1188,7 @@ describe('MapStore — live location', () => {
       setRoute() {},
       setUnits() {},
       setLiveLocation: (l: { lng: number; lat: number } | null) => pushed.push(l),
+      setSidebarOverlay() {},
       setSearchMarker() {},
       flyTo: (center: LngLat) => flyTo.push(center),
       getZoom: () => 9
@@ -1281,5 +1286,41 @@ describe('MapStore — live location', () => {
       mock.emitState({ liveLocationState: host })
       expect(store.getSnapshot().locationStatus).toBe(drawn)
     }
+  })
+})
+
+describe('MapStore — sidebar tab overlay', () => {
+  let store: MapStore
+  afterEach(async () => { await disposeStore(store) })
+  const journey = (fit: string, points: unknown[]) => ({ color: '#2d327d', fit, paths: [{ points, color: '#2d327d', stops: [[8.49, 47.39]] }], markers: [{ lng: 8.405, lat: 47.406, kind: 'origin', label: 'Dietikon' }] })
+
+  it('draws a validated copy, refits only on a new fit token, and clears without touching user routes or places', async () => {
+    const mock = createMockValleyApi({ manifest: { id: 'map' } })
+    store = createStore(mock.api); await store.ready
+    const rec = recordingEngine()
+    // Before a map view is open nothing is drawn; the map fits the overlay once it opens.
+    store.setSidebarOverlay(journey('path:a', [[8.405, 47.406], [8.54, 47.378]]))
+    store.attachMap(rec.engine)
+    expect(rec.fits).toEqual([[[8.405, 47.406], [8.54, 47.378], [8.405, 47.406]]])
+    const raw = journey('path:a', [[8.405, 47.406], [Number.NaN, 47], [200, 47], [8.54, 47.378], [8.6, 47.4]])
+    store.setSidebarOverlay(raw)
+    expect(rec.fits).toHaveLength(1)
+    const drawn = rec.overlays.at(-1) as { paths: { points: LngLat[] }[] }
+    expect(drawn.paths[0].points).toEqual([[8.405, 47.406], [8.54, 47.378], [8.6, 47.4]])
+    expect(drawn.paths[0].points[0]).not.toBe(raw.paths[0].points[0])
+    store.setSidebarOverlay(journey('path:b', [[8.405, 47.406], [8.31, 47.05]]))
+    expect(rec.fits).toHaveLength(2)
+    const pushed = rec.overlays.length
+    store.setSidebarOverlay(journey('path:b', [[8.405, 47.406], [8.31, 47.05]]))
+    expect(rec.overlays).toHaveLength(pushed)
+    store.setSidebarOverlay({ paths: [{ points: [[8, 47]] }], markers: [{ lng: 'x', lat: 47 }] })
+    expect(rec.overlays.at(-1)).toBeNull()
+    store.setSidebarOverlay(journey('path:b', [[8.405, 47.406], [8.31, 47.05]]))
+    expect(rec.fits).toHaveLength(3)
+    store.setSidebarOverlay(null)
+    expect(rec.overlays.at(-1)).toBeNull()
+    expect(mock.api.settings.get()).not.toHaveProperty('sidebarOverlay')
+    expect(store.getSnapshot().routes).toEqual([])
+    expect(store.getSnapshot().places).toEqual([])
   })
 })

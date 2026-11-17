@@ -38,6 +38,7 @@ import {
   type GeoJsonFeatureCollection
 } from './geojson'
 import { needsPmtiles, styleFor, type ThemeMode } from './mapStyle'
+import type { SidebarOverlay } from './sidebarOverlay'
 import type { ValleyUnits } from '@valley/plugin-sdk/units'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 
@@ -47,6 +48,11 @@ const SAVED_ROUTES_SOURCE = 'sig-saved-routes'
 const SAVED_ROUTE_COLOR = '#8a8f98'
 const SAVED_ROUTE_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 2.5, 10, 4, 14, 6, 18, 10, 22, 16]
 const SAVED_ROUTE_CASING_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 5, 10, 7, 14, 9.5, 18, 14, 22, 21]
+/** A sidebar tab's overlay (a provider's journey, a station): thin lines with a light casing, under the open plan. */
+const SIDEBAR_SOURCE = 'sig-sidebar'
+const SIDEBAR_COLOR = '#5b6170'
+const SIDEBAR_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 2.5, 10, 3.5, 14, 5, 18, 8, 22, 12]
+const SIDEBAR_CASING_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 5.5, 10, 6.5, 14, 8, 18, 11, 22, 16]
 const PLACES_SOURCE = 'sig-places'
 const PINS_SOURCE = 'sig-pins'
 const LOCATION_SOURCE = 'sig-location'
@@ -163,6 +169,7 @@ export class MapEngine {
 
   private route: LngLat[] = []
   private savedRoutes: { id: string; coords: LngLat[]; color?: string }[] = []
+  private sidebarOverlay: SidebarOverlay | null = null
   private places: Place[] = []
   private pins: GeoPin[] = []
   private location: LiveLocation | null = null
@@ -405,6 +412,7 @@ export class MapEngine {
     if (!map.isStyleLoaded()) return
     this.ensureSource(ROUTE_SOURCE)
     this.ensureSource(SAVED_ROUTES_SOURCE)
+    this.ensureSource(SIDEBAR_SOURCE)
     this.ensureSource(PLACES_SOURCE)
     this.ensureSource(PINS_SOURCE)
     this.ensureSource(LOCATION_SOURCE)
@@ -429,6 +437,27 @@ export class MapEngine {
         paint: { 'line-color': ['coalesce', ['get', 'color'], SAVED_ROUTE_COLOR], 'line-width': SAVED_ROUTE_WIDTH, 'line-opacity': 0.95 }
       } as unknown as LayerSpecification, labelLayer)
     }
+    // A sidebar tab's overlay sits between the saved routes and the open plan; on a style that
+    // already has the plan, it goes directly under it.
+    const sidebarBefore = map.getLayer('sig-route-casing') ? 'sig-route-casing' : labelLayer
+    const sidebarLayers = [
+      { id: 'sig-sidebar-casing', type: 'line', source: SIDEBAR_SOURCE, filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': SIDEBAR_CASING_WIDTH, 'line-opacity': this.opts.theme === 'light' ? 0.95 : 0.8 } },
+      { id: 'sig-sidebar-line', type: 'line', source: SIDEBAR_SOURCE, filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': SIDEBAR_WIDTH, 'line-opacity': 1 } },
+      { id: 'sig-sidebar-stops', type: 'circle', source: SIDEBAR_SOURCE, filter: ['==', ['get', 'kind'], 'stop'],
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2, 14, 3.5], 'circle-color': '#ffffff', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 1.5 } },
+      { id: 'sig-sidebar-markers', type: 'circle', source: SIDEBAR_SOURCE, filter: ['all', ['==', ['geometry-type'], 'Point'], ['!=', ['get', 'kind'], 'stop']],
+        paint: {
+          'circle-radius': ['match', ['get', 'kind'], 'change', 4.5, 'origin', 6, 'destination', 7, 8],
+          'circle-color': ['match', ['get', 'kind'], 'change', '#ffffff', ['get', 'color']],
+          'circle-stroke-color': ['match', ['get', 'kind'], 'change', ['get', 'color'], '#ffffff'],
+          'circle-stroke-width': ['match', ['get', 'kind'], 'change', 2.5, 3]
+        } }
+    ]
+    for (const layer of sidebarLayers) if (!map.getLayer(layer.id)) map.addLayer(layer as unknown as LayerSpecification, sidebarBefore)
     if (!map.getLayer('sig-route-casing')) {
       map.addLayer(
         {
@@ -590,11 +619,24 @@ export class MapEngine {
       type: 'FeatureCollection',
       features: this.savedRoutes.filter(route => route.coords.length > 1).map(route => lineFeature(route.coords, route.color ? { id: route.id, color: this.cssColor(route.color) } : { id: route.id }))
     })
+    this.setData(SIDEBAR_SOURCE, this.sidebarCollection())
     this.setData(PLACES_SOURCE, placesToFeatureCollection(this.places.map((place) => place.color ? { ...place, color: this.cssColor(place.color) } : place)))
     this.setData(PINS_SOURCE, pinsToFeatureCollection(this.pins))
     this.setData(LOCATION_SOURCE, this.locationCollection())
     const source = this.map.getSource(FILE_SOURCE) as GeoJSONSource | undefined
     source?.setData(this.fileData)
+  }
+
+  /** The sidebar overlay's lines, then the stops along them, then its markers on top. */
+  private sidebarCollection(): GeoJsonFeatureCollection {
+    const overlay = this.sidebarOverlay
+    if (!overlay) return emptyCollection()
+    const fallback = overlay.color ?? SIDEBAR_COLOR
+    return { type: 'FeatureCollection', features: [
+      ...overlay.paths.map(path => lineFeature(path.points, { color: path.color ?? fallback })),
+      ...overlay.paths.flatMap(path => path.stops.map(([lng, lat]) => pointFeature(lng, lat, { kind: 'stop', color: path.color ?? fallback }))),
+      ...overlay.markers.map(marker => pointFeature(marker.lng, marker.lat, { kind: marker.kind, color: fallback, ...(marker.label ? { label: marker.label } : {}) }))
+    ] }
   }
 
   /** The dot plus its accuracy ring, or nothing when there is no fix. A ring is
@@ -626,6 +668,12 @@ export class MapEngine {
   /** The saved routes drawn under the open plan; `color` is a stored palette value or literal. */
   setSavedRoutes(routes: { id: string; coords: LngLat[]; color?: string }[]): void {
     this.savedRoutes = routes
+    this.syncData()
+  }
+
+  /** A sidebar tab's overlay, or `null` to clear it. Cloned into this map's realm (see `setFileData`). */
+  setSidebarOverlay(overlay: SidebarOverlay | null): void {
+    this.sidebarOverlay = overlay ? structuredClone(overlay) : null
     this.syncData()
   }
 

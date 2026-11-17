@@ -7,6 +7,7 @@ import type { DatasetBatchOperation, DatasetRecord, DatasetTransactionOperation,
 import type { ValleyPluginApi, ValleyReadonlyState } from '@valley/plugin-sdk'
 import type { MapConnectionInfo } from './serviceClient'
 import type { MapEngine } from './mapEngine'
+import { normalizeSidebarOverlay, overlayPoints, type SidebarOverlay } from './sidebarOverlay'
 import type { ThemeMode } from './mapStyle'
 import type {
   ClickMode,
@@ -455,6 +456,10 @@ export class MapStore {
   /** A restored route must not fit the map — the restored camera wins. Cleared
    *  by the first genuine planner edit, which then fits normally again. */
   private suppressPlanFit = false
+  /** The open sidebar tab's overlay (never saved), its content key and the `fit` token the camera last fitted. */
+  private sidebarOverlay: SidebarOverlay | null = null
+  private sidebarOverlayKey = ''
+  private sidebarOverlayFitted: string | undefined
   private offUnload: (() => void) | null = null
   private offBeforeUnload: (() => void) | null = null
 
@@ -1370,6 +1375,7 @@ export class MapStore {
     engine.setSearchMarker(this.searchMarker)
     engine.setUnits(this.units)
     engine.setLiveLocation(this.liveLocation)
+    engine.setSidebarOverlay(this.sidebarOverlay)
     // Keep `pendingFocus` set until a *ready* engine applies it (`onMapReady`): React
     // StrictMode mounts the map view twice, destroying the first engine before its style
     // loads — nulling here would let that doomed engine swallow the focus and leave the
@@ -1381,6 +1387,7 @@ export class MapStore {
     else if (!this.suppressPlanFit && this.plan && this.plan.geometry.length > 1) {
       engine.fitTo(this.plan.geometry)
     }
+    else if (this.sidebarOverlay && this.sidebarOverlay.fit !== this.sidebarOverlayFitted) this.fitSidebarOverlay()
     else this.applySavedView()
     this.emit()
   }
@@ -1408,6 +1415,28 @@ export class MapStore {
     const shown = settings.routesHidden === true ? [] : visibleItems(filedRoutes(this.routes, normalizeRouteFiling(settings.routeFiling)), folders, stringList(settings.hiddenRouteFolders), stringList(settings.hiddenRoutes))
     this.engine.setSavedRoutes(shown.flatMap(item => item.route.geometry && item.route.geometry.length > 1
       ? [{ id: item.id, coords: item.route.geometry, color: folderColor(folders, item.folder) }] : []))
+  }
+
+  /**
+   * What the open `map.sidebarTab` wants on the map (`null` clears it): drawn
+   * on the main map only, under the route plan, never saved and never touching
+   * places, routes, pins or the plan. The camera fits it when its `fit` token changes.
+   */
+  setSidebarOverlay(raw: unknown): void {
+    const overlay = normalizeSidebarOverlay(raw)
+    const key = overlay ? JSON.stringify(overlay) : ''
+    if (key === this.sidebarOverlayKey) return
+    this.sidebarOverlayKey = key
+    this.sidebarOverlay = overlay
+    if (!overlay) this.sidebarOverlayFitted = undefined
+    this.engine?.setSidebarOverlay(overlay)
+    if (overlay && overlay.fit !== this.sidebarOverlayFitted) this.fitSidebarOverlay()
+  }
+
+  private fitSidebarOverlay(): void {
+    if (!this.engine || !this.sidebarOverlay) return
+    this.sidebarOverlayFitted = this.sidebarOverlay.fit
+    this.engine.fitTo(overlayPoints(this.sidebarOverlay))
   }
 
   // ---- focus / navigation ---------------------------------------------------

@@ -52,6 +52,19 @@ export type MapSidebarWhen = {
   /** Without `departure` and `arrival` texts the host offers no departure/arrival choice. */
   text: { departure?: string; arrival?: string; now: string; date: string; time?: string; title?: string; apply?: string; departureShort?: string; arrivalShort?: string; close?: string }
 }
+/** A WGS84 position as `[lng, lat]`. */
+export type MapSidebarPoint = [number, number]
+/** One line on the map: straight segments through `points` in order, with a small dot at each of `stops`. */
+export type MapSidebarPath = { points: MapSidebarPoint[]; color?: string; stops?: MapSidebarPoint[] }
+/** A point the map marks: the start or end of a path, a change between two paths, or a single station. */
+export type MapSidebarMarker = { lng: number; lat: number; label?: string; kind?: 'origin' | 'destination' | 'station' | 'change' }
+/**
+ * What the map shows for the tab while it is open, drawn under the host's own
+ * route plan and never saved. `color` is a `#rrggbb` colour for the markers and
+ * for paths without their own. The map fits everything shown whenever `fit`
+ * changes. Hosts draw at most 8 paths of 2000 points (500 stops) and 64 markers.
+ */
+export type MapSidebarOverlay = { paths?: MapSidebarPath[]; markers?: MapSidebarMarker[]; color?: string; fit?: string }
 
 /**
  * What a sidebar tab shows. `fields`, `actions` and `rows` are the original
@@ -91,6 +104,8 @@ export interface MapSidebarSnapshot {
   tileSwipe?: string
   /** The glyph of the result rows (station suggestions), drawn in the look's icon colour; the host's pin otherwise. */
   rowIcon?: { viewBox: string; path: string; fillRule?: 'evenodd' | 'nonzero' }
+  /** Lines and markers the map draws while the tab is open; leave it out when there is nothing to show. */
+  overlay?: MapSidebarOverlay
 }
 
 export interface MapSidebarTab {

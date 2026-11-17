@@ -35,7 +35,7 @@ vi.mock('maplibre-gl', () => {
     isStyleLoaded() { return true }
     getStyle() { return { layers: [] } }
     getLayer(id: string) { return this.layers.get(id) }
-    addLayer(value: { id: string; type: string }) { this.layers.set(value.id, value) }
+    addLayer(value: { id: string; type: string }, before?: string) { this.layers.set(value.id, { ...value, ...(before ? { before } : {}) }) }
     queryRenderedFeatures() { return [{ source: 'sig-file', id: 0 }] }
     getSource(id: string) { return this.sources.get(id) }
     addSource(id: string, value: { data: unknown }) {
@@ -190,6 +190,38 @@ it('retains file layers across style reloads and suspension and ignores clicks f
   expect(click).toHaveBeenCalledTimes(1)
   engine.setFileData({ type: 'FeatureCollection', features: [] })
   expect(state.maps[1].sources.get('sig-file')?.data).toMatchObject({ features: [] })
+  engine.destroy()
+})
+
+it('draws a sidebar overlay from its own copy, between the saved routes and the open plan, and clears it', () => {
+  const fixture = setup()
+  const engine = new MapEngine(fixture.options, fixture.owner)
+  const overlay = { color: '#2d327d', fit: 'path:a', paths: [{ points: [[8.405, 47.406], [8.489, 47.391], [8.54, 47.378]] as [number, number][], stops: [[8.489, 47.391]] as [number, number][], color: '#2d327d' }],
+    markers: [{ lng: 8.405, lat: 47.406, kind: 'origin' as const }, { lng: 8.54, lat: 47.378, kind: 'destination' as const }] }
+  engine.setSavedRoutes([{ id: 'saved', coords: [[7, 46], [7.1, 46.1]] }])
+  engine.setRoute([[9, 47], [9.1, 47.1]])
+  engine.setSidebarOverlay(overlay)
+  fixture.intersect(true); state.maps[0].fire('load')
+  const map = state.maps[0]
+  const ids = [...map.layers.keys()]
+  const at = (id: string) => ids.indexOf(id)
+  expect(at('sig-saved-routes-line')).toBeLessThan(at('sig-sidebar-casing'))
+  expect([at('sig-sidebar-casing'), at('sig-sidebar-line'), at('sig-sidebar-stops'), at('sig-sidebar-markers')]).toEqual([...Array(4).keys()].map(index => at('sig-sidebar-casing') + index))
+  expect(at('sig-sidebar-markers')).toBeLessThan(at('sig-route-casing'))
+  const drawn = map.sources.get('sig-sidebar')?.data as { features: { geometry: { coordinates: unknown }; properties: Record<string, unknown> }[] }
+  expect(drawn.features.map(feature => feature.properties.kind ?? 'line')).toEqual(['line', 'stop', 'origin', 'destination'])
+  expect(drawn.features[0]).toMatchObject({ geometry: { coordinates: overlay.paths[0].points }, properties: { color: '#2d327d' } })
+  // Cloned into the map's realm: never the provider's arrays.
+  expect(drawn.features[0].geometry.coordinates).not.toBe(overlay.paths[0].points)
+  expect((drawn.features[0].geometry.coordinates as unknown[])[0]).not.toBe(overlay.paths[0].points[0])
+  expect(map.sources.get('sig-saved-routes')?.data).toMatchObject({ features: [{ properties: { id: 'saved' } }] })
+  expect(map.sources.get('sig-route')?.data).toMatchObject({ features: [{ geometry: { coordinates: [[9, 47], [9.1, 47.1]] } }] })
+  // A style that already has the plan gets the overlay directly under it.
+  map.layers.delete('sig-sidebar-line'); map.fire('styledata')
+  expect(map.layers.get('sig-sidebar-line')).toMatchObject({ before: 'sig-route-casing' })
+  engine.setSidebarOverlay(null)
+  expect(map.sources.get('sig-sidebar')?.data).toMatchObject({ features: [] })
+  expect(map.sources.get('sig-saved-routes')?.data).toMatchObject({ features: [{ properties: { id: 'saved' } }] })
   engine.destroy()
 })
 

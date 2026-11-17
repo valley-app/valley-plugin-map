@@ -3,6 +3,7 @@ import { React, api } from './runtime'
 import { MAP_SIDEBAR_TAB_V1, type MapSidebarTab } from './sidebarContract'
 import { uiText } from './localization'
 import { JourneyPanel, isPlannerSnapshot } from './JourneyPanel'
+import { getStore } from './store'
 
 export function orderedTabs(saved: unknown, available: readonly string[]): string[] {
   const order = Array.isArray(saved) ? saved.filter((value): value is string => typeof value === 'string') : []
@@ -86,6 +87,9 @@ export function ExtensionPanel({ extension }: { extension: MapSidebarTab }) {
     doc?.addEventListener('visibilitychange', update)
     return () => { doc?.removeEventListener('visibilitychange', update); extension.setActive?.(false) }
   }, [extension])
+  // The tab's overlay shows on the main map while this panel is open, and goes with it.
+  React.useEffect(() => { getStore()?.setSidebarOverlay(snapshot?.overlay ?? null) }, [snapshot])
+  React.useEffect(() => () => { getStore()?.setSidebarOverlay(null) }, [extension])
   const fieldsKey = JSON.stringify(snapshot?.fields ?? [])
   React.useEffect(() => { setValues(Object.fromEntries((JSON.parse(fieldsKey) as { id: string; value: string }[]).map(field => [field.id, field.value]))) }, [fieldsKey])
   const run = async (action: string, extra?: Record<string, string>): Promise<void> => {

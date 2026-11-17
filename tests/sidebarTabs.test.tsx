@@ -8,6 +8,7 @@ import { ExtensionPanel, orderedTabs, SidebarTabs } from '../src/SidebarTabs'
 import type { MapSidebarTab } from '../src/sidebarContract'
 import { FileInfo } from '../src/FileView'
 import { injectStyles } from '../src/styles'
+import { createStore, disposeStore } from '../src/store'
 
 afterEach(cleanup)
 const tabs = ['search', 'places', 'routes', 'pins'].map(id => ({ id, label: id, icon: <span>{id}</span> }))
@@ -341,4 +342,23 @@ it('always shows the complete line text at its natural size, never capped or tru
   const extension: MapSidebarTab = { id: 'sbb', label: 'SBB', icon: { path: '', viewBox: '0 0 24 24' }, getSnapshot: () => snapshot, subscribe: () => vi.fn(), run: vi.fn(async () => {}) }
   const { container } = render(<ExtensionPanel extension={extension} />)
   expect(container.querySelector('.map-board-line .map-line-badge')).toHaveTextContent('EC000060')
+})
+
+it('hands the open tab\'s overlay to the map and takes it away when the tab is left', async () => {
+  const mock = setup()
+  const store = createStore(mock.api); await act(async () => { await store.ready })
+  const set = vi.spyOn(store, 'setSidebarOverlay')
+  let notify = () => {}
+  const overlay = { fit: 'station:1', color: '#2d327d', markers: [{ lng: 8.54, lat: 47.378, kind: 'station' as const, label: 'Zürich HB' }] }
+  let snapshot: ReturnType<MapSidebarTab['getSnapshot']> = { fields: [], actions: [], rows: [], segments: [{ id: 'departures', label: 'Departures' }], segment: 'departures', overlay }
+  const extension: MapSidebarTab = { id: 'sbb', label: 'SBB', icon: { path: '', viewBox: '0 0 24 24' }, getSnapshot: () => snapshot, subscribe: listener => { notify = listener; return () => {} }, run: vi.fn(async () => {}) }
+  const view = render(<ExtensionPanel extension={extension} />)
+  expect(set).toHaveBeenLastCalledWith(overlay)
+  act(() => { snapshot = { ...snapshot, overlay: undefined }; notify() })
+  expect(set).toHaveBeenLastCalledWith(null)
+  act(() => { snapshot = { ...snapshot, overlay }; notify() })
+  expect(set).toHaveBeenLastCalledWith(overlay)
+  view.unmount()
+  expect(set).toHaveBeenLastCalledWith(null)
+  await disposeStore(store)
 })
