@@ -54,17 +54,19 @@ export type MapSidebarWhen = {
 }
 /** A WGS84 position as `[lng, lat]`. */
 export type MapSidebarPoint = [number, number]
-/** One line on the map: straight segments through `points` in order, with a small dot at each of `stops`. */
-export type MapSidebarPath = { points: MapSidebarPoint[]; color?: string; stops?: MapSidebarPoint[] }
+/** One line on the map: straight segments through `points` in order, with a stop mark at each of `stops`; `stopNames[i]` names `stops[i]`. */
+export type MapSidebarPath = { points: MapSidebarPoint[]; color?: string; stops?: MapSidebarPoint[]; stopNames?: string[] }
 /** A point the map marks: the start or end of a path, a change between two paths, or a single station. */
 export type MapSidebarMarker = { lng: number; lat: number; label?: string; kind?: 'origin' | 'destination' | 'station' | 'change' }
 /**
  * What the map shows for the tab while it is open, drawn under the host's own
  * route plan and never saved. `color` is a `#rrggbb` colour for the markers and
  * for paths without their own. The map fits everything shown whenever `fit`
- * changes. Hosts draw at most 8 paths of 2000 points (500 stops) and 64 markers.
+ * changes. Hosts draw at most 8 paths of 2000 points (500 stops) and 64 markers,
+ * and show stop and marker names on hover or click. `attribution` credits the
+ * data a path is drawn from (`© OpenStreetMap contributors`) in the map's attribution.
  */
-export type MapSidebarOverlay = { paths?: MapSidebarPath[]; markers?: MapSidebarMarker[]; color?: string; fit?: string }
+export type MapSidebarOverlay = { paths?: MapSidebarPath[]; markers?: MapSidebarMarker[]; color?: string; fit?: string; attribution?: string }
 
 /**
  * What a sidebar tab shows. `fields`, `actions` and `rows` are the original

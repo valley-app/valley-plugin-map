@@ -53,6 +53,8 @@ const SIDEBAR_SOURCE = 'sig-sidebar'
 const SIDEBAR_COLOR = '#5b6170'
 const SIDEBAR_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 2.5, 10, 3.5, 14, 5, 18, 8, 22, 12]
 const SIDEBAR_CASING_WIDTH = ['interpolate', ['exponential', 1.5], ['zoom'], 5, 5.5, 10, 6.5, 14, 8, 18, 11, 22, 16]
+const SIDEBAR_POINT_LAYERS = ['sig-sidebar-markers', 'sig-sidebar-stops']
+const SIDEBAR_LAYERS = ['sig-sidebar-casing', 'sig-sidebar-line', ...SIDEBAR_POINT_LAYERS]
 const PLACES_SOURCE = 'sig-places'
 const PINS_SOURCE = 'sig-pins'
 const LOCATION_SOURCE = 'sig-location'
@@ -170,6 +172,8 @@ export class MapEngine {
   private route: LngLat[] = []
   private savedRoutes: { id: string; coords: LngLat[]; color?: string }[] = []
   private sidebarOverlay: SidebarOverlay | null = null
+  /** The attribution the sidebar source was created with; a different one recreates it. */
+  private sidebarAttribution = ''
   private places: Place[] = []
   private pins: GeoPin[] = []
   private location: LiveLocation | null = null
@@ -180,6 +184,8 @@ export class MapEngine {
   private placeSelected: string | null = null
   private placeMarkers: Marker[] = []
   private hoverPopup: Popup | null = null
+  private stopPopup: Popup | null = null
+  private stopPinned = false
   private searchMarker: Marker | null = null
   private scaleControl: ScaleControl | null = null
   /** Camera move requested before the style finished loading — replayed on `load`. */
@@ -363,6 +369,7 @@ export class MapEngine {
     this.sourceMarkers = []
     this.placeMarkers = []
     this.hoverPopup?.remove(); this.hoverPopup = null
+    this.stopPopup?.remove(); this.stopPopup = null; this.stopPinned = false
     this.searchMarker?.remove(); this.searchMarker = null
     map.remove()
   }
@@ -372,8 +379,30 @@ export class MapEngine {
   private wireInteractions(): void {
     const map = this.map
     if (!map) return
+    // A sidebar overlay's stop names: a small tooltip on hover, kept after a click until the next one.
+    const named = (point: Parameters<typeof map.queryRenderedFeatures>[0]) => {
+      const layers = SIDEBAR_POINT_LAYERS.filter((l) => map.getLayer(l))
+      const feature = layers.length ? map.queryRenderedFeatures(point, { layers }).find(hit => typeof hit.properties?.label === 'string') : undefined
+      return feature?.geometry.type === 'Point' ? { label: String(feature.properties.label), at: feature.geometry.coordinates as LngLat } : undefined
+    }
+    for (const layer of SIDEBAR_POINT_LAYERS) {
+      map.on('mousemove', layer, (e) => {
+        if (this.map !== map || !this.owner.isActive()) return
+        const hit = named(e.point)
+        map.getCanvas().style.cursor = hit ? 'pointer' : ''
+        if (hit && !this.stopPinned) this.showStopName(hit.label, hit.at)
+      })
+      map.on('mouseleave', layer, () => {
+        map.getCanvas().style.cursor = ''
+        if (!this.stopPinned) { this.stopPopup?.remove(); this.stopPopup = null }
+      })
+    }
     map.on('click', (e) => {
       if (this.map !== map || !this.owner.isActive()) return
+      const stop = named(e.point)
+      this.stopPinned = Boolean(stop)
+      if (stop) { this.showStopName(stop.label, stop.at); return }
+      this.stopPopup?.remove(); this.stopPopup = null
       const layers = CLICKABLE_LAYERS.filter((l) => map.getLayer(l))
       const hit = layers.length ? map.queryRenderedFeatures(e.point, { layers }) : []
       const feature = hit[0]
@@ -412,7 +441,10 @@ export class MapEngine {
     if (!map.isStyleLoaded()) return
     this.ensureSource(ROUTE_SOURCE)
     this.ensureSource(SAVED_ROUTES_SOURCE)
-    this.ensureSource(SIDEBAR_SOURCE)
+    if (!map.getSource(SIDEBAR_SOURCE)) {
+      this.sidebarAttribution = this.sidebarOverlay?.attribution ?? ''
+      map.addSource(SIDEBAR_SOURCE, { type: 'geojson', data: emptyCollection(), ...(this.sidebarAttribution ? { attribution: this.sidebarAttribution } : {}) } as unknown as SourceSpecification)
+    }
     this.ensureSource(PLACES_SOURCE)
     this.ensureSource(PINS_SOURCE)
     this.ensureSource(LOCATION_SOURCE)
@@ -448,13 +480,13 @@ export class MapEngine {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'color'], 'line-width': SIDEBAR_WIDTH, 'line-opacity': 1 } },
       { id: 'sig-sidebar-stops', type: 'circle', source: SIDEBAR_SOURCE, filter: ['==', ['get', 'kind'], 'stop'],
-        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2, 14, 3.5], 'circle-color': '#ffffff', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 1.5 } },
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3, 10, 4, 14, 5.5], 'circle-color': '#ffffff', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 2 } },
       { id: 'sig-sidebar-markers', type: 'circle', source: SIDEBAR_SOURCE, filter: ['all', ['==', ['geometry-type'], 'Point'], ['!=', ['get', 'kind'], 'stop']],
         paint: {
-          'circle-radius': ['match', ['get', 'kind'], 'change', 4.5, 'origin', 6, 'destination', 7, 8],
+          'circle-radius': ['match', ['get', 'kind'], 'change', 6, 'origin', 7, 'destination', 8, 8],
           'circle-color': ['match', ['get', 'kind'], 'change', '#ffffff', ['get', 'color']],
           'circle-stroke-color': ['match', ['get', 'kind'], 'change', ['get', 'color'], '#ffffff'],
-          'circle-stroke-width': ['match', ['get', 'kind'], 'change', 2.5, 3]
+          'circle-stroke-width': ['match', ['get', 'kind'], 'change', 3, 3]
         } }
     ]
     for (const layer of sidebarLayers) if (!map.getLayer(layer.id)) map.addLayer(layer as unknown as LayerSpecification, sidebarBefore)
@@ -634,7 +666,7 @@ export class MapEngine {
     const fallback = overlay.color ?? SIDEBAR_COLOR
     return { type: 'FeatureCollection', features: [
       ...overlay.paths.map(path => lineFeature(path.points, { color: path.color ?? fallback })),
-      ...overlay.paths.flatMap(path => path.stops.map(([lng, lat]) => pointFeature(lng, lat, { kind: 'stop', color: path.color ?? fallback }))),
+      ...overlay.paths.flatMap(path => path.stops.map(({ point: [lng, lat], name }) => pointFeature(lng, lat, { kind: 'stop', color: path.color ?? fallback, ...(name ? { label: name } : {}) }))),
       ...overlay.markers.map(marker => pointFeature(marker.lng, marker.lat, { kind: marker.kind, color: fallback, ...(marker.label ? { label: marker.label } : {}) }))
     ] }
   }
@@ -674,6 +706,15 @@ export class MapEngine {
   /** A sidebar tab's overlay, or `null` to clear it. Cloned into this map's realm (see `setFileData`). */
   setSidebarOverlay(overlay: SidebarOverlay | null): void {
     this.sidebarOverlay = overlay ? structuredClone(overlay) : null
+    this.stopPopup?.remove(); this.stopPopup = null; this.stopPinned = false
+    // MapLibre reads a source's attribution once: credit new data by recreating the source and its layers.
+    const map = this.map
+    if (map && this.ready && map.getSource(SIDEBAR_SOURCE) && (overlay?.attribution ?? '') !== this.sidebarAttribution) {
+      for (const id of SIDEBAR_LAYERS) if (map.getLayer(id)) map.removeLayer(id)
+      map.removeSource(SIDEBAR_SOURCE)
+      this.applyOverlays()
+      return
+    }
     this.syncData()
   }
 
@@ -820,6 +861,16 @@ export class MapEngine {
     })
     for (const marker of previous.values()) marker.remove()
     this.placeMarkers = markers
+  }
+
+  private showStopName(label: string, at: LngLat): void {
+    const map = this.map
+    if (!map || !this.ready) return
+    this.stopPopup?.remove()
+    this.stopPopup = new Popup({ closeButton: false, closeOnClick: false, offset: 12, className: 'map-pin-popup-wrap map-stop-popup' })
+      .setLngLat(at)
+      .setHTML(`<div class="map-pin-popup"><div class="map-pin-popup-title">${escapeHtml(label)}</div></div>`)
+      .addTo(map)
   }
 
   private showPinPopup(pin: NotePin): void {

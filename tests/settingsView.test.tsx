@@ -102,18 +102,33 @@ describe('Map pin source editor', () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]), indexEntries: entries })
     const folder = screen.getByRole('textbox', { name: 'Only in this folder' })
     expect(screen.queryByRole('button', { name: /Advanced/i })).toBeNull()
-    expect(folder.compareDocumentPosition(screen.getByRole('textbox', { name: 'Frontmatter key' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(folder.compareDocumentPosition(screen.getByRole('textbox', { name: 'Property' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.change(folder, { target: { value: 'Fie' } })
     // Typing drafts; only a commit saves, so a save cannot re-render the field mid-word.
     expect(storedSources(mock)[0].folder).toBeUndefined()
     fireEvent.change(folder, { target: { value: 'Field' } })
     fireEvent.blur(folder)
     await waitFor(() => expect(storedSources(mock)[0].folder).toBe('Field'))
-    expect(document.querySelector('.map-source-stats')).toHaveTextContent('1 notes match · 1 pinned')
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent('1 note found · 1 on the map')
     fireEvent.change(folder, { target: { value: '' } })
     fireEvent.blur(folder)
     await waitFor(() => expect(storedSources(mock)[0].folder).toBeUndefined())
-    expect(document.querySelector('.map-source-stats')).toHaveTextContent('2 notes match · 2 pinned')
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent('2 notes found · 2 on the map')
+    dispose()
+  })
+
+  it('edits the rule as two fields joined by =', async () => {
+    const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+    const row = screen.getByText('Property and value').closest('.settings-path-row') as HTMLElement
+    const match = row.querySelector('.settings-row-control.map-source-match') as HTMLElement
+    expect(match).not.toBeNull()
+    expect(within(match).getByRole('textbox', { name: 'Property' })).toHaveValue('type')
+    expect(within(match).getByRole('textbox', { name: 'Value' })).toHaveValue('contact')
+    expect(match).toHaveTextContent('=')
+    const value = within(match).getByRole('textbox', { name: 'Value' })
+    fireEvent.change(value, { target: { value: ' person ' } })
+    await act(async () => fireEvent.blur(value))
+    await waitFor(() => expect(storedSources(mock)[0].matchValue).toBe('person'))
     dispose()
   })
 
@@ -128,37 +143,46 @@ describe('Map pin source editor', () => {
     expect(chips[1].getAttribute('data-variant')).toBe('ring')
     expect(chips[0].getAttribute('data-color')).toBe('palette:primary-blue')
     expect(chips[1].getAttribute('data-color')).toBe('#ffffff')
+    // The icon picker sits in the same row, before the colours.
+    const row = screen.getByText('Icon and colours').closest('.settings-path-row') as HTMLElement
+    const picker = within(row).getByRole('button', { name: 'Pin icon' })
+    expect(picker.compareDocumentPosition(chips[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     dispose()
   })
 
-  it('paints the source swatch through custom properties, never a resolved colour', async () => {
-    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+  it('paints the source disc through custom properties, never a resolved colour', async () => {
+    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) }, false)
 
-    const swatch = document.querySelector('.map-source-swatch') as HTMLElement
+    const disc = document.querySelector('.map-source-disc') as HTMLElement
     // An inline concrete colour beats every stylesheet, a user's
     // `.valley/design/*.css` included — so a palette reference must reach the
     // element as `var(--color-…)` on a custom property, not as a background.
-    expect(swatch.style.getPropertyValue('--swatch-fill')).toBe('var(--color-primary-blue)')
-    expect(swatch.style.getPropertyValue('--swatch-ring')).toBe('#ffffff')
-    expect(swatch.style.getPropertyValue('--swatch-on')).toBe('var(--color-primary-blue-on)')
-    expect(swatch.style.background).toBe('')
+    expect(disc.tagName).toBe('SPAN')
+    expect(disc.style.getPropertyValue('--swatch-fill')).toBe('var(--color-primary-blue)')
+    expect(disc.style.getPropertyValue('--swatch-ring')).toBe('#ffffff')
+    expect(disc.style.getPropertyValue('--swatch-on')).toBe('var(--color-primary-blue-on)')
+    expect(disc.style.background).toBe('')
+    expect(disc.querySelector('svg')).not.toBeNull()
     dispose()
   })
 
-  it('gives Hide and Delete a glyph each, as the Calendar note-date row does', async () => {
-    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+  it('gives Delete a glyph on a kit Button and arms it before deleting', async () => {
+    const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
 
-    const actions = document.querySelector('.map-source-actions') as HTMLElement
-    const [hide, remove] = within(actions).getAllByRole('button')
-    expect(hide).toHaveTextContent('Hide')
+    const row = screen.getByText('Delete source').closest('.settings-path-row') as HTMLElement
+    const remove = within(row).getByRole('button')
     expect(remove).toHaveTextContent('Delete')
-    for (const button of [hide, remove]) {
-      // Kit buttons, not hand-rolled ones — the frame, padding and typography
-      // come from the kit so the two plugins cannot drift apart on them.
-      expect(button.getAttribute('data-variant')).toBe('ghost')
-      expect(button.getAttribute('data-size')).toBe('small')
-      expect(button.querySelector('svg')).not.toBeNull()
-    }
+    // A kit button, not a hand-rolled one — the frame, padding and typography
+    // come from the kit so the two plugins cannot drift apart on them.
+    expect(remove.getAttribute('data-variant')).toBe('ghost')
+    expect(remove.getAttribute('data-size')).toBe('small')
+    expect(remove.querySelector('svg')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /^(Hide|Show)$/ })).toBeNull()
+    await act(async () => fireEvent.click(remove))
+    expect(remove).toHaveTextContent('Confirm')
+    expect(storedSources(mock)).toHaveLength(1)
+    await act(async () => fireEvent.click(remove))
+    await waitFor(() => expect(storedSources(mock)).toHaveLength(0))
     dispose()
   })
 
@@ -171,8 +195,18 @@ describe('Map pin source editor', () => {
 
     // Neither note carries coordinates, so both are waiting on the geocoder —
     // "matched, none locatable" must not read as "no notes match".
-    expect(document.querySelector('.map-source-stats')).toHaveTextContent('2 notes match')
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent('2 notes found · 2 not located yet')
     expect(document.querySelector('.map-source-stats.warn')).toBeNull()
+    dispose()
+  })
+
+  it('warns when the rule matches notes but none has a usable location', async () => {
+    const entries = [contact('Fern', '', { frontmatter: { type: 'contact' } }), contact('Moss', '', { frontmatter: { type: 'contact' } })]
+    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]), indexEntries: entries })
+
+    expect(document.querySelector('.map-source-stats.warn')).toHaveTextContent('2 notes found · none has a usable “place”')
+    fireEvent.click(document.querySelector('.map-source-disclosure')!)
+    expect(document.querySelector('.map-source-sub .map-source-warn')).toHaveTextContent('none has a usable “place”')
     dispose()
   })
 
@@ -182,15 +216,21 @@ describe('Map pin source editor', () => {
       indexEntries: [contact('Tim Cook', ['19 Supply Chain Circle, Palo Alto, CA'])]
     })
 
-    expect(document.querySelector('.map-source-stats')).toHaveTextContent('0 notes found')
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent(/^0 notes found$/)
     expect(document.querySelector('.map-source-stats.warn')).toBeNull()
+    fireEvent.click(document.querySelector('.map-source-disclosure')!)
+    expect(document.querySelector('.map-source-count')).toHaveTextContent('0')
+    expect(document.querySelector('.map-source-warn')).toBeNull()
     dispose()
   })
 
-  it('stays silent while the rule is still being written', async () => {
+  it('asks for the rule while it is still being written', async () => {
     const { dispose } = await renderPins({ datasets: sourceDatasets([{ ...CONTACTS_SOURCE, matchValue: '' }]) })
 
-    expect(document.querySelector('.map-source-stats')).toBeNull()
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent(/^Choose a property and value$/)
+    fireEvent.click(document.querySelector('.map-source-disclosure')!)
+    expect(document.querySelector('.map-source-sub')).toHaveTextContent('Choose a property and value · Whole realm')
+    expect(document.querySelector('.map-source-count')).toHaveTextContent('–')
     dispose()
   })
 
@@ -202,7 +242,7 @@ describe('Map pin source editor', () => {
     ]
     const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]), indexEntries: entries })
 
-    expect(document.querySelector('.map-source-stats')).toHaveTextContent('1 notes match · 1 pinned')
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent(/^1 note found · 1 on the map$/)
     dispose()
   })
 
@@ -220,17 +260,106 @@ describe('Map pin source editor', () => {
     dispose()
   })
 
+  it('mounts only the visibility switch in a collapsed row and states rule, folder and count', async () => {
+    const entries = [contact('Fern', '', { relPath: 'Field/Fern.md', frontmatter: { type: 'contact', lat: 12, lng: 8 } })]
+    const { dispose } = await renderPins({ datasets: sourceDatasets([{ ...CONTACTS_SOURCE, folder: 'Field' }]), indexEntries: entries }, false)
+    const row = document.querySelector('.map-source-row') as HTMLElement
+    expect(row.querySelector('.map-source-icon-btn')).toBeNull()
+    expect(within(row).queryByRole('button', { name: 'Pin icon' })).toBeNull()
+    expect(row.querySelector('.settings-color-swatch')).toBeNull()
+    expect(within(row).queryAllByRole('textbox')).toHaveLength(0)
+    expect(within(row).queryByRole('combobox')).toBeNull()
+    expect(within(row).getAllByRole('switch')).toHaveLength(1)
+    expect(row.querySelector('.map-source-name')).toHaveTextContent('Contacts')
+    expect(row.querySelector('.map-source-sub')).toHaveTextContent(/^type = contact · Field$/)
+    const count = row.querySelector('.map-source-count') as HTMLElement
+    expect(count).toHaveTextContent(/^1$/)
+    expect(count).toHaveAttribute('title', '1 note found · 1 on the map')
+    // The name and sub-line open the source.
+    fireEvent.click(row.querySelector('button.map-source-meta')!)
+    expect(row.querySelector('.map-source-editor')).not.toBeNull()
+    dispose()
+  })
+
+  it('names an untitled source and the whole realm in its collapsed row', async () => {
+    const { dispose } = await renderPins({ datasets: sourceDatasets([{ ...CONTACTS_SOURCE, title: '' }]) }, false)
+    expect(document.querySelector('.map-source-name')).toHaveTextContent('Untitled')
+    expect(document.querySelector('.map-source-sub')).toHaveTextContent('type = contact · Whole realm')
+    dispose()
+  })
+
+  it('turns a source off with Use this source and disables its row switch', async () => {
+    const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+    const use = screen.getByRole('switch', { name: 'Use this source' })
+    expect(use).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Contacts' })).not.toBeDisabled()
+    await act(async () => fireEvent.click(use))
+    await waitFor(() => expect(storedSources(mock)[0].hidden).toBe(true))
+    expect(screen.getByRole('switch', { name: 'Use this source' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Contacts' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Contacts' })).not.toBeChecked()
+    expect(document.querySelector('.map-source-stats')).toHaveTextContent(/^\d+ notes? found · Turned off$/)
+    expect(document.querySelector('.map-source-row')).toHaveClass('is-off')
+    expect(document.querySelector('.map-source-count')).toHaveTextContent('–')
+    fireEvent.click(document.querySelector('.map-source-disclosure')!)
+    expect(document.querySelector('.map-source-sub')).toHaveTextContent(/^Turned off · type = contact$/)
+    fireEvent.click(document.querySelector('.map-source-disclosure')!)
+    await act(async () => fireEvent.click(screen.getByRole('switch', { name: 'Use this source' })))
+    await waitFor(() => expect(storedSources(mock)[0].hidden).toBe(false))
+    expect(screen.getByRole('switch', { name: 'Contacts' })).not.toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Contacts' })).toBeChecked()
+    dispose()
+  })
+
+  it('commits popup fields through the chips field', async () => {
+    const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+    const row = screen.getByText('Popup fields').closest('.settings-path-row') as HTMLElement
+    const chips = row.querySelector('.settings-chips-field') as HTMLElement
+    expect(chips).toHaveTextContent('profession')
+    expect(chips).toHaveTextContent('place')
+    const input = within(chips).getByRole('textbox', { name: 'Popup fields' })
+    fireEvent.change(input, { target: { value: '  email ' } })
+    await act(async () => fireEvent.keyDown(input, { key: 'Enter' }))
+    await waitFor(() => expect(storedSources(mock)[0].hoverFields).toEqual(['profession', 'place', 'email']))
+    await waitFor(() => expect(row.querySelector('.settings-chips-field')).toHaveTextContent('email'))
+    dispose()
+  })
+
   it('switches the default location property with the coordinate mode and preserves custom fields', async () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([{ ...CONTACTS_SOURCE, locationField: 'address' }]) })
-    const mode = screen.getByRole('combobox', { name: 'Location' })
-    await act(async () => fireEvent.change(mode, { target: { value: 'coordinate' } }))
+    const mode = screen.getByRole('group', { name: 'Location from' })
+    expect(within(mode).getByRole('button', { name: 'Address' })).toHaveAttribute('aria-pressed', 'true')
+    await act(async () => fireEvent.click(within(mode).getByRole('button', { name: 'Coordinates' })))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Location property' })).toHaveValue('coordinates'))
     const property = screen.getByRole('textbox', { name: 'Location property' })
     fireEvent.change(property, { target: { value: 'habitat' } })
     await act(async () => fireEvent.blur(property))
-    await act(async () => fireEvent.change(mode, { target: { value: 'address' } }))
+    await act(async () => fireEvent.click(within(screen.getByRole('group', { name: 'Location from' })).getByRole('button', { name: 'Address' })))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Location property' })).toHaveValue('habitat'))
     expect(storedSources(mock)[0].locationField).toBe('habitat')
+    dispose()
+  })
+
+  it('asks for the title property only when the pin title comes from a property', async () => {
+    const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+    expect(screen.queryByRole('textbox', { name: 'Title property' })).toBeNull()
+    await act(async () => fireEvent.click(within(screen.getByRole('group', { name: 'Pin title' })).getByRole('button', { name: 'Property' })))
+    await waitFor(() => expect(storedSources(mock)[0].labelMode).toBe('property'))
+    const field = screen.getByRole('textbox', { name: 'Title property' })
+    expect(field.closest('.settings-path-row')).toHaveTextContent('Pin title')
+    fireEvent.change(field, { target: { value: 'name' } })
+    await act(async () => fireEvent.blur(field))
+    await waitFor(() => expect(storedSources(mock)[0].labelField).toBe('name'))
+    dispose()
+  })
+
+  it('orders the editor groups Notes, Location, Pin, Popup, then use and delete', async () => {
+    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
+    const editor = document.querySelector('.map-source-editor') as HTMLElement
+    expect([...editor.querySelectorAll('.map-source-group > .settings-label')].map(node => node.textContent)).toEqual(['Notes', 'Location', 'Pin', 'Popup'])
+    expect([...editor.querySelectorAll('.settings-toggle-title')].map(node => node.textContent)).toEqual([
+      'Folder', 'Property and value', 'Location from', 'Location property', 'Icon and colours', 'Pin title', 'Popup fields', 'Use this source', 'Delete source'
+    ])
     dispose()
   })
 
@@ -246,6 +375,37 @@ describe('Map pin source editor', () => {
       'palette:yellow'
     ])
     dispose()
+  })
+
+  it('keeps Add source in the toolbar beside the search, and alone with zero sources', async () => {
+    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) }, false)
+    const toolbar = document.querySelector('.map-sources-toolbar') as HTMLElement
+    expect(within(toolbar).getByRole('textbox', { name: 'Find pin sources' })).toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: /Add source/i }).closest('.map-add-source-row')).not.toBeNull()
+    // The icon folder row now sits below the list.
+    const icons = screen.getByText('Pin icons').closest('.settings-path-row') as HTMLElement
+    expect(document.querySelector('.map-source-list')!.compareDocumentPosition(icons) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // A source added beside collapsed ones opens by itself; the others stay closed.
+    await act(async () => fireEvent.click(within(toolbar).getByRole('button', { name: /Add source/i })))
+    await waitFor(() => expect(document.querySelectorAll('.map-source-row')).toHaveLength(2))
+    expect([...document.querySelectorAll('.map-source-row')].map(row => row.classList.contains('is-open'))).toEqual([false, true])
+    expect(document.querySelector('.map-source-title')!.querySelector('input')).toHaveAccessibleName('Source title')
+    dispose()
+
+    const mock = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
+    initLocalization(mock.api)
+    initRuntime(mock.api)
+    const store = createStore(mock.api)
+    await act(async () => { render(React.createElement(Settings, { section: 'pins' })) })
+    await waitFor(() => expect(screen.getByText('No pin sources yet')).toBeInTheDocument())
+    const empty = document.querySelector('.map-sources-toolbar') as HTMLElement
+    expect(within(empty).queryByRole('textbox')).toBeNull()
+    await act(async () => fireEvent.click(within(empty).getByRole('button', { name: /Add source/i })))
+    await waitFor(() => expect(storedSources(mock)).toHaveLength(1))
+    // The new source opens expanded with its title field ready.
+    expect(screen.getByRole('textbox', { name: 'Source title' })).toBeInTheDocument()
+    cleanup()
+    disposeStore(store)
   })
 })
 

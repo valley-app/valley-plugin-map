@@ -196,6 +196,42 @@ export function pendingAddress(
   return addressText(fm?.[source.locationField])
 }
 
+/** The source's rule as one line, `key = value`, or '' while it is unfinished. */
+export function ruleSummary(source: PinSource): string {
+  return isSourceActive(source) ? `${source.matchKey} = ${source.matchValue}` : ''
+}
+
+export interface SourceStats {
+  /** Notes the rule matches. */
+  matched: number
+  /** Matched notes that carry their own coordinates. */
+  locatable: number
+  /** Matched notes waiting on the geocoder for their address. */
+  awaiting: number
+}
+
+/**
+ * What a source finds, against an empty geocode cache on purpose: it counts the
+ * notes that carry their own coordinates and, separately, the ones still waiting
+ * on the geocoder. The store owns the real cache and reports its pin count.
+ */
+export function sourceStats(entries: readonly IndexEntry[], source: PinSource): SourceStats {
+  const empty: GeoCache = new Map()
+  const stats: SourceStats = { matched: 0, locatable: 0, awaiting: 0 }
+  for (const entry of matchingNotes(entries, source)) {
+    stats.matched += 1
+    if (resolvePinLocation(entry.frontmatter, source, empty)) stats.locatable += 1
+    else if (pendingAddress(entry.frontmatter, source)) stats.awaiting += 1
+  }
+  return stats
+}
+
+/** Matched notes with coordinates or an address that are not on the map yet. */
+export function notLocatedYet(stats: SourceStats, onMap: number): number {
+  const unlocatable = stats.matched - stats.locatable - stats.awaiting
+  return Math.max(0, stats.matched - onMap - unlocatable)
+}
+
 /** The hover-popup rows for a note: the configured fields with present values. */
 export function hoverFieldsFor(
   fm: Record<string, unknown> | undefined,

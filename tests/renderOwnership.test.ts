@@ -15,12 +15,12 @@ type Camera = { center: [number, number]; zoom: number; bearing: number; pitch: 
 type PhysicalMap = {
   camera: Camera
   options: Camera & { transformRequest(url: string): { url: string } }
-  sources: Map<string, { data: unknown; setData(data: unknown): void }>
+  sources: Map<string, { data: unknown; attribution?: string; setData(data: unknown): void }>
   layers: Map<string, { type: string }>
   removed: boolean
   fire(event: string, value?: unknown): void
 }
-const state = vi.hoisted(() => ({ maps: [] as PhysicalMap[], markers: [] as HTMLElement[], popups: [] as { removed: boolean }[], protocols: new Map<string, (input: { url: string; type?: string }, controller: AbortController) => Promise<{ data: unknown }>>() }))
+const state = vi.hoisted(() => ({ maps: [] as PhysicalMap[], markers: [] as HTMLElement[], popups: [] as { removed: boolean; html?: string }[], protocols: new Map<string, (input: { url: string; type?: string }, controller: AbortController) => Promise<{ data: unknown }>>() }))
 
 vi.mock('maplibre-gl', () => {
   class Map {
@@ -38,8 +38,10 @@ vi.mock('maplibre-gl', () => {
     addLayer(value: { id: string; type: string }, before?: string) { this.layers.set(value.id, { ...value, ...(before ? { before } : {}) }) }
     queryRenderedFeatures() { return [{ source: 'sig-file', id: 0 }] }
     getSource(id: string) { return this.sources.get(id) }
-    addSource(id: string, value: { data: unknown }) {
-      const source = { data: value.data, setData(data: unknown) { source.data = data } }
+    removeLayer(id: string) { this.layers.delete(id) }
+    removeSource(id: string) { this.sources.delete(id) }
+    addSource(id: string, value: { data: unknown; attribution?: string }) {
+      const source = { data: value.data, attribution: value.attribution, setData(data: unknown) { source.data = data } }
       this.sources.set(id, source)
     }
     setStyle() {}
@@ -63,7 +65,8 @@ vi.mock('maplibre-gl', () => {
   class Popup extends Marker {
     removed = false
     constructor() { super(); state.popups.push(this) }
-    setHTML() { return this }
+    html = ''
+    setHTML(html: string) { this.html = html; return this }
     remove() { this.removed = true }
   }
   return { Map, Marker, Popup, NavigationControl: class {}, ScaleControl: class {},
@@ -196,8 +199,8 @@ it('retains file layers across style reloads and suspension and ignores clicks f
 it('draws a sidebar overlay from its own copy, between the saved routes and the open plan, and clears it', () => {
   const fixture = setup()
   const engine = new MapEngine(fixture.options, fixture.owner)
-  const overlay = { color: '#2d327d', fit: 'path:a', paths: [{ points: [[8.405, 47.406], [8.489, 47.391], [8.54, 47.378]] as [number, number][], stops: [[8.489, 47.391]] as [number, number][], color: '#2d327d' }],
-    markers: [{ lng: 8.405, lat: 47.406, kind: 'origin' as const }, { lng: 8.54, lat: 47.378, kind: 'destination' as const }] }
+  const overlay = { color: '#2d327d', fit: 'path:a', paths: [{ points: [[8.405, 47.406], [8.489, 47.391], [8.54, 47.378]] as [number, number][], stops: [{ point: [8.489, 47.391] as [number, number], name: 'Zürich Altstetten' }], color: '#2d327d' }],
+    markers: [{ lng: 8.405, lat: 47.406, kind: 'origin' as const, label: 'Dietikon' }, { lng: 8.54, lat: 47.378, kind: 'destination' as const }] }
   engine.setSavedRoutes([{ id: 'saved', coords: [[7, 46], [7.1, 46.1]] }])
   engine.setRoute([[9, 47], [9.1, 47.1]])
   engine.setSidebarOverlay(overlay)
@@ -210,6 +213,7 @@ it('draws a sidebar overlay from its own copy, between the saved routes and the 
   expect(at('sig-sidebar-markers')).toBeLessThan(at('sig-route-casing'))
   const drawn = map.sources.get('sig-sidebar')?.data as { features: { geometry: { coordinates: unknown }; properties: Record<string, unknown> }[] }
   expect(drawn.features.map(feature => feature.properties.kind ?? 'line')).toEqual(['line', 'stop', 'origin', 'destination'])
+  expect(drawn.features.map(feature => feature.properties.label ?? null)).toEqual([null, 'Zürich Altstetten', 'Dietikon', null])
   expect(drawn.features[0]).toMatchObject({ geometry: { coordinates: overlay.paths[0].points }, properties: { color: '#2d327d' } })
   // Cloned into the map's realm: never the provider's arrays.
   expect(drawn.features[0].geometry.coordinates).not.toBe(overlay.paths[0].points)
@@ -219,7 +223,19 @@ it('draws a sidebar overlay from its own copy, between the saved routes and the 
   // A style that already has the plan gets the overlay directly under it.
   map.layers.delete('sig-sidebar-line'); map.fire('styledata')
   expect(map.layers.get('sig-sidebar-line')).toMatchObject({ before: 'sig-route-casing' })
+  // A stop's name on click, as a small tooltip; the click goes no further.
+  const original = map as unknown as { queryRenderedFeatures: (point: unknown, options?: { layers?: string[] }) => unknown[] }
+  original.queryRenderedFeatures = (_point, options) => options?.layers?.includes('sig-sidebar-stops') ? [{ properties: { label: 'Zürich <Altstetten>' }, geometry: { type: 'Point', coordinates: [8.489, 47.391] } }] : []
+  map.fire('click', { point: { x: 1, y: 1 }, lngLat: { lng: 8.489, lat: 47.391 } })
+  expect(state.popups.at(-1)).toMatchObject({ removed: false, html: expect.stringContaining('Zürich &lt;Altstetten&gt;') })
+  // Credited data recreates the source with its attribution, still under the plan.
+  expect(map.sources.get('sig-sidebar')?.attribution).toBeUndefined()
+  engine.setSidebarOverlay({ ...overlay, attribution: '© OpenStreetMap contributors' })
+  expect(map.sources.get('sig-sidebar')?.attribution).toBe('© OpenStreetMap contributors')
+  expect(map.layers.get('sig-sidebar-casing')).toMatchObject({ before: 'sig-route-casing' })
+  expect(map.sources.get('sig-sidebar')?.data).toMatchObject({ features: [{ properties: { color: '#2d327d' } }, {}, {}, {}] })
   engine.setSidebarOverlay(null)
+  expect(map.sources.get('sig-sidebar')?.attribution).toBeUndefined()
   expect(map.sources.get('sig-sidebar')?.data).toMatchObject({ features: [] })
   expect(map.sources.get('sig-saved-routes')?.data).toMatchObject({ features: [{ properties: { id: 'saved' } }] })
   engine.destroy()

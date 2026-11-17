@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { IndexEntry } from '@valley/plugin-sdk/types'
 import { createMockValleyApi } from './harness'
-import { createStore, disposeStore, type MapStore } from '../src/store'
+import { createStore, disposeStore, shownWaypoints, type MapStore } from '../src/store'
+import { normalizeSidebarOverlay } from '../src/sidebarOverlay'
 import type { MapEngine } from '../src/mapEngine'
 import type { LngLat, Place, Route } from '../src/types'
 import { accountProviderChoice } from '../src/settings'
@@ -1322,5 +1323,16 @@ describe('MapStore — sidebar tab overlay', () => {
     expect(mock.api.settings.get()).not.toHaveProperty('sidebarOverlay')
     expect(store.getSnapshot().routes).toEqual([])
     expect(store.getSnapshot().places).toEqual([])
+    const named = normalizeSidebarOverlay({ fit: 'x', attribution: ' © OpenStreetMap contributors ', paths: [{ points: [[8, 47], [8.1, 47.1]], stops: [[8.05, 47.05], ['x', 1], [8.07, 47.07]], stopNames: ['Baden', 'Gone', ' '] }] })!
+    expect(named.paths[0].stops).toEqual([{ point: [8.05, 47.05], name: 'Baden' }, { point: [8.07, 47.07] }])
+    expect(named.attribution).toBe('© OpenStreetMap contributors')
+  })
+
+  it('draws no lettered marker for a planner that holds only the origin it took from the live position', () => {
+    expect(shownWaypoints([{ lng: 8, lat: 47, label: 'Your location', fromLiveLocation: true }])).toEqual([])
+    const plan = [{ lng: 8, lat: 47, label: 'Your location', fromLiveLocation: true }, { lng: 8.5, lat: 47.4, label: 'Zürich' }]
+    expect(shownWaypoints(plan)).toBe(plan)
+    const typed = [{ lng: 8, lat: 47, label: 'Baden' }]
+    expect(shownWaypoints(typed)).toBe(typed)
   })
 })

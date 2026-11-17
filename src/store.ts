@@ -111,6 +111,15 @@ const isPanelTab = (value: unknown): value is PanelTab => typeof value === 'stri
 const TRAVEL_MODES: TravelMode[] = ['driving', 'walking', 'cycling']
 
 /** The filled stops of a stop list, in order. */
+/**
+ * The planner stops drawn as lettered markers: none while the planner holds only
+ * the origin it filled in from the live position, which is not a plan and would
+ * only repeat the position as an "A".
+ */
+export function shownWaypoints(waypoints: Waypoint[]): Waypoint[] {
+  return waypoints.length === 1 && waypoints[0].fromLiveLocation ? [] : waypoints
+}
+
 export function filledStops(stops: (Waypoint | null)[]): Waypoint[] {
   return stops.filter((stop): stop is Waypoint => stop !== null)
 }
@@ -1003,7 +1012,7 @@ export class MapStore {
       this.plannerWaypoints = filledStops(this.plannerStops)
       if (this.plannerWaypoints.length >= 2) {
         this.suppressPlanFit = true
-        this.engine?.setWaypoints(this.plannerWaypoints)
+        this.engine?.setWaypoints(shownWaypoints(this.plannerWaypoints))
         this.scheduleCompute()
       }
     }
@@ -1093,7 +1102,7 @@ export class MapStore {
       this.plannerMode = route.mode
       this.plannerWaypoints = route.waypoints
       this.plannerStops = [...route.waypoints]
-      this.engine?.setWaypoints(route.waypoints)
+      this.engine?.setWaypoints(shownWaypoints(route.waypoints))
       this.plan = route.geometry?.length ? { geometry: route.geometry, distanceM: route.distanceM ?? 0, durationS: route.durationS ?? 0 } : null
       this.engine?.setRoute(this.plan?.geometry ?? null)
       if (!this.plan && !background) { this.suppressPlanFit = true; void this.computePlan() }
@@ -1370,7 +1379,7 @@ export class MapStore {
     this.pushRoutes()
     engine.setPins(this.pins)
     engine.setSourcePins(this.sourcePins)
-    engine.setWaypoints(this.plannerWaypoints)
+    engine.setWaypoints(shownWaypoints(this.plannerWaypoints))
     if (this.plan) engine.setRoute(this.plan.geometry)
     engine.setSearchMarker(this.searchMarker)
     engine.setUnits(this.units)
@@ -1901,7 +1910,7 @@ export class MapStore {
       this.plannerStops = paddedStops([...waypoints])
     }
     this.savedRouteId = null
-    this.engine?.setWaypoints(waypoints)
+    this.engine?.setWaypoints(shownWaypoints(waypoints))
     this.emit()
     this.markSession()
     this.scheduleCompute()
@@ -1963,7 +1972,7 @@ export class MapStore {
     this.plannerWaypoints = waypoints
     this.plannerStops = [...waypoints]
     this.savedRouteId = null
-    this.engine?.setWaypoints(waypoints)
+    this.engine?.setWaypoints(shownWaypoints(waypoints))
     if (this.planTimer !== null) window.clearTimeout(this.planTimer)
     this.emit()
     this.markSession()
@@ -2010,7 +2019,7 @@ export class MapStore {
         this.engine?.setRoute(raw.geometry)
         // Re-place the markers: they went down on the typed coordinate when the
         // stop was filled, before the router had told us where it would snap.
-        if (snapped) this.engine?.setWaypoints(this.plannerWaypoints, snapped)
+        if (snapped) this.engine?.setWaypoints(shownWaypoints(this.plannerWaypoints), snapped)
         // A route re-planned from a restored session must not steal the camera the
         // same reload just put back — one plan's worth of suppression, then normal.
         if (this.suppressPlanFit) this.suppressPlanFit = false
@@ -2131,7 +2140,7 @@ export class MapStore {
     this.plannerWaypoints = route.waypoints
     this.plannerStops = [...route.waypoints]
     this.savedRouteId = route.id
-    this.engine?.setWaypoints(route.waypoints)
+    this.engine?.setWaypoints(shownWaypoints(route.waypoints))
     if (route.geometry && route.geometry.length > 1) {
       this.plan = {
         geometry: route.geometry,

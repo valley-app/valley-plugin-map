@@ -5,8 +5,8 @@ import type { IndexEntry } from '@valley/plugin-sdk/types'
 import type { MapConnectionInfo } from './serviceClient'
 import { paletteCssContrast, paletteCssValue } from '@valley/plugin-sdk/palette'
 import type { PinSource } from './types'
-import { defaultPinSource, isSourceActive, matchNotes, pendingAddress, resolvePinLocation } from './pinSources'
-import { ChevronRight, GripVertical, Eye, EyeOff, Pencil, PinGlyph, PIN_GLYPHS, Plus, Trash } from './icons'
+import { defaultPinSource, isSourceActive, notLocatedYet, ruleSummary, sourceStats } from './pinSources'
+import { ChevronRight, GripVertical, Pencil, PinGlyph, PIN_GLYPHS, Plus, Trash } from './icons'
 import { MAP_ICON_FOLDER, refreshMapIcons, useMapIcons } from './pinIcons'
 import { usePinSettings } from './hooks'
 import { uiText } from './localization'
@@ -260,43 +260,6 @@ const ConfirmRemove: FC<{ onDelete: () => void; label: string }> = ({ onDelete, 
   )
 }
 
-/** The "Show" list: one text input per hover field, with per-row remove and a
- *  `+ Add field` button. Commits the cleaned (trimmed, blank-free) array up. */
-const HoverFieldsEditor: FC<{ value: string[]; onCommit: (next: string[]) => void }> = ({ value, onCommit }) => {
-  const [rows, setRows] = React.useState<string[]>(value.length ? value : [''])
-  const clean = (list: string[]): string[] => list.map((s) => s.trim()).filter(Boolean)
-  return (
-    <div className="map-source-hover">
-      {rows.map((row, i) => (
-        <div className="map-source-hover-row" key={i}>
-          <TextField
-            value={row}
-            ariaLabel={uiText('auto.8615314b1421')}
-            onChange={(value) => setRows(rows.map((r, idx) => (idx === i ? value : r)))}
-            onCommit={(value) => onCommit(clean(rows.map((row, index) => (index === i ? value : row))))}
-          />
-          <IconButton
-            className="map-source-hover-remove"
-            variant="ghost"
-            size="small"
-            ariaLabel={uiText('auto.f4e036059f93')}
-            onClick={() => {
-              const next = rows.filter((_, idx) => idx !== i)
-              setRows(next.length ? next : [''])
-              onCommit(clean(next))
-            }}
-          >
-            ×
-          </IconButton>
-        </div>
-      ))}
-      <Button variant="ghost" size="small" className="map-add-field" onClick={() => setRows([...rows, ''])}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus /> {uiText('auto.039c63152c67')}</span>
-      </Button>
-    </div>
-  )
-}
-
 const DraftTextField: FC<{
   value: string
   ariaLabel: string
@@ -350,21 +313,23 @@ const ColorChip: FC<{
   return <ColorField variant={variant} value={value} onChange={onChange} ariaLabel={label} />
 }
 
-/** The pin's glyph, shown as the source swatch; click opens a grid to change it. */
-const IconPicker: FC<{ icon: string; color: string; borderColor: string; onChange: (id: string) => void }> = ({
-  icon,
-  color,
-  borderColor,
-  onChange
-}) => {
+/** The source's pin as a static disc: its glyph on its colour, inside its ring. */
+const SourceDisc: FC<{ source: PinSource }> = ({ source }) => (
+  <span className="map-source-disc" aria-hidden="true"
+    style={{
+      ['--swatch-fill' as string]: paletteCssValue(source.color),
+      ['--swatch-ring' as string]: paletteCssValue(source.borderColor),
+      ['--swatch-on' as string]: paletteCssContrast(source.color)
+    }}>
+    <PinGlyph id={source.icon} />
+  </span>
+)
+
+/** The compact icon-only button that opens the pin icon grid. */
+const IconPicker: FC<{ icon: string; onChange: (id: string) => void }> = ({ icon, onChange }) => {
   const ref = React.useRef<HTMLButtonElement>(null)
   return (
-    <button ref={ref} type="button" className="map-source-swatch"
-      style={{
-        ['--swatch-fill' as string]: paletteCssValue(color),
-        ['--swatch-ring' as string]: paletteCssValue(borderColor),
-        ['--swatch-on' as string]: paletteCssContrast(color)
-      }}
+    <button ref={ref} type="button" className="map-source-icon-btn"
       aria-label={uiText('auto.f6ae21a5ccb9')} title={uiText('auto.bfb52c1e0245')}
       onClick={() => {
         if (!ref.current) return
@@ -408,54 +373,64 @@ export const PinIconGrid: FC<{ selected: string; onSelect: (id: string) => void 
   </div>
 }
 
+interface SourceStatus {
+  /** The full status sentence. */
+  text: string
+  /** Pins on the map, or null when the rule is unfinished. */
+  onMap: number | null
+  /** The rule matches notes but none has a usable location. */
+  unusable: boolean
+}
+
 /**
  * What this source currently finds. A mistyped key, value or location property
  * is otherwise indistinguishable from an empty realm — nothing appears on the
- * map and nothing says why. Silent on an unfinished rule. The Calendar's
- * note-date sources carry the same line, in the same place, for the same reason.
+ * map and nothing says why. The Calendar's note-date sources carry the same
+ * line, in the same place, for the same reason.
  */
-const MatchStats: FC<{ source: PinSource; entries: IndexEntry[]; pinned: number }> = ({
-  source,
-  entries,
-  pinned
-}) => {
-  const stats = React.useMemo(() => {
-    const matched = matchNotes(entries, source)
-    // An empty cache, deliberately: this counts the notes that carry their own
-    // coordinates, and separately the ones still waiting on the geocoder. The
-    // store owns the real cache and reports its total through `pinned`.
-    let locatable = 0
-    let awaiting = 0
-    for (const entry of matched) {
-      if (resolvePinLocation(entry.frontmatter, source, new Map())) locatable += 1
-      else if (pendingAddress(entry.frontmatter, source)) awaiting += 1
-    }
-    return { matched: matched.length, locatable, awaiting }
+function useSourceStatus(source: PinSource, entries: IndexEntry[], pinned: number): SourceStatus {
+  const stats = React.useMemo(
+    () => sourceStats(entries, source),
     // Only the fields the predicate and the location resolve actually read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, source.matchKey, source.matchValue, source.folder, source.locationMode, source.locationField])
-
-  if (!isSourceActive(source)) return null
-  if (stats.matched === 0) {
-    return (
-      <div className="map-source-stats">
-        {uiText('map.pinStats.noMatch')}
-      </div>
-    )
-  }
+    [entries, source.matchKey, source.matchValue, source.folder, source.locationMode, source.locationField]
+  )
+  if (!isSourceActive(source)) return { text: uiText('pins.unfinished'), onMap: null, unusable: false }
+  const found = uiText(stats.matched === 1 ? 'pins.stats.foundOne' : 'pins.stats.found', { count: stats.matched })
+  if (source.hidden) return { text: `${found} · ${uiText('pins.turnedOff')}`, onMap: null, unusable: false }
+  if (stats.matched === 0) return { text: found, onMap: 0, unusable: false }
   if (pinned === 0 && stats.locatable === 0 && stats.awaiting === 0) {
-    return (
-      <div className="map-source-stats warn">
-        {uiText('map.pinStats.noLocation', { p0: stats.matched, p1: source.locationField })}
-      </div>
-    )
+    return { text: `${found} · ${uiText('pins.noUsableLocation', { field: source.locationField })}`, onMap: 0, unusable: true }
   }
+  const onMap = Math.max(pinned, stats.locatable)
+  const later = notLocatedYet(stats, onMap)
+  const parts = [found]
+  if (onMap > 0) parts.push(uiText('pins.stats.onMap', { count: onMap }))
+  if (later > 0) parts.push(uiText('pins.stats.notLocated', { count: later }))
+  return { text: parts.join(' · '), onMap, unusable: false }
+}
+
+const MatchStats: FC<{ status: SourceStatus }> = ({ status }) =>
+  <span className={status.unusable ? 'map-source-stats warn' : 'map-source-stats'}>{status.text}</span>
+
+/** The collapsed second line: rule, folder and a broken-location warning. */
+const SourceSubLine: FC<{ source: PinSource; status: SourceStatus }> = ({ source, status }) => {
+  const rule = ruleSummary(source) || uiText('pins.unfinished')
+  if (source.hidden) return <span className="map-source-sub">{`${uiText('pins.turnedOff')} · ${rule}`}</span>
   return (
-    <div className="map-source-stats">
-      {uiText('map.pinStats.pinned', { p0: stats.matched, p1: Math.max(pinned, stats.locatable) })}
-    </div>
+    <span className="map-source-sub">
+      {`${rule} · ${source.folder || uiText('auto.ad980036b394')}`}
+      {status.unusable && <> · <span className="map-source-warn">{uiText('pins.noUsableLocation', { field: source.locationField })}</span></>}
+    </span>
   )
 }
+
+const SourceGroup: FC<{ title: string; children: ReactNode }> = ({ title, children }) => (
+  <div className="map-source-group">
+    <h5 className="settings-label">{title}</h5>
+    {children}
+  </div>
+)
 
 export const SourceRow: FC<{
   source: PinSource
@@ -466,155 +441,149 @@ export const SourceRow: FC<{
   initiallyExpanded?: boolean
   handle?: ReactNode
 }> = ({ source, entries, pinned, onChange, onDelete, handle, initiallyExpanded = true }) => {
-  const { SelectField } = api.ui.settings
+  const { Toggle } = api.ui.settings
   const [expanded, setExpanded] = React.useState(initiallyExpanded)
-  const field = (label: string, node: ReactElement, wide = false): ReactElement => (
-    <div className={wide ? 'map-source-field wide' : 'map-source-field'}>
-      <label>{label}</label>
-      {node}
+  // A source added from the toolbar can mount before its id is marked as new.
+  React.useEffect(() => { if (initiallyExpanded) setExpanded(true) }, [initiallyExpanded])
+  const status = useSourceStatus(source, entries, pinned)
+  const name = source.title || uiText('pins.untitled')
+  const count = source.hidden || status.onMap === null ? '–' : String(status.onMap)
+  return (
+    <div className={`map-source-row${source.hidden ? ' is-off' : ''}${expanded ? ' is-open' : ''}`}>
+      <div className="map-source-head">
+        {handle ?? <span aria-hidden="true" />}
+        <button type="button" className="map-source-disclosure" aria-expanded={expanded} aria-label={uiText('sources.details', { title: source.title })} onClick={() => setExpanded(value => !value)}><ChevronRight /></button>
+        <SourceDisc source={source} />
+        {expanded ? <div className="map-source-meta">
+          <div className="settings-row-control map-source-title">
+            <DraftTextField
+              value={source.title}
+              placeholder={uiText('auto.7412dd4f8cee')}
+              ariaLabel={uiText('auto.73723c3d0b28')}
+              onCommit={(value) => onChange({ title: value.trim() })}
+            />
+          </div>
+          <MatchStats status={status} />
+        </div> : <button type="button" className="map-source-meta" onClick={() => setExpanded(true)}>
+          <span className={source.title ? 'map-source-name' : 'map-source-name is-placeholder'}>{name}</span>
+          <SourceSubLine source={source} status={status} />
+        </button>}
+        <span className="map-source-count" title={status.text}>{count}</span>
+        <Toggle checked={source.visible && !source.hidden} label={name} disabled={source.hidden} onChange={visible => onChange({ visible })} />
+      </div>
+      {expanded && <SourceEditor source={source} onChange={onChange} onDelete={onDelete} />}
     </div>
   )
+}
+
+/** The expanded source: Notes, Location, Pin and Popup, then use and delete. */
+const SourceEditor: FC<{
+  source: PinSource
+  onChange: (patch: Partial<PinSource>) => void
+  onDelete: () => void
+}> = ({ source, onChange, onDelete }) => {
+  const { ChipsField, Segmented, Toggle } = api.ui.settings
   return (
-    <div className="map-source-row">
-      <div className="map-source-head">
-        {handle}
-        <button type="button" className="map-source-disclosure" aria-expanded={expanded} aria-label={uiText('sources.details', { title: source.title })} onClick={() => setExpanded(value => !value)}><ChevronRight /></button>
-        <IconPicker
-          icon={source.icon}
-          color={source.color}
-          borderColor={source.borderColor}
-          onChange={(id) => onChange({ icon: id })}
-        />
-        {expanded ? <>
-        <DraftTextField
-          className="settings-path-input map-source-title"
-          value={source.title}
-          placeholder={uiText('auto.7412dd4f8cee')}
-          ariaLabel={uiText('auto.73723c3d0b28')}
-          onCommit={(value) => onChange({ title: value.trim() })}
-        />
-        </> : <button type="button" className="map-source-summary" onClick={() => setExpanded(true)}>
-          <span>{source.title || uiText('auto.7412dd4f8cee')}</span>
-          <small>{source.folder || uiText('auto.ad980036b394')}</small>
-        </button>}
-        <api.ui.settings.Toggle checked={source.visible} label={source.title || uiText('auto.7412dd4f8cee')} onChange={visible => onChange({ visible })} />
-      </div>
-      <MatchStats source={source} entries={entries} pinned={pinned} />
-      {expanded && <div className="map-source-details">
-      <div className="map-source-tools">
-        <div className="map-source-color">
-          <ColorChip
-            variant="fill"
-            value={source.color}
-            label={uiText('auto.9c307613d98e')}
-            onChange={(value) => onChange({ color: value })}
-          />
-          <ColorChip
-            variant="ring"
-            value={source.borderColor}
-            label={uiText('auto.eeffa83765fc')}
-            onChange={(value) => onChange({ borderColor: value })}
-          />
-        </div>
-        <div className="map-source-actions">
-          <Button
-            className="map-source-toggle"
-            variant="ghost"
-            size="small"
-            onClick={() => onChange({ hidden: !source.hidden })}
-            title={
-              source.hidden
-                ? uiText('auto.07da07909625')
-                : uiText('auto.ea463ac7f93c')
-            }
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{source.hidden ? <Eye /> : <EyeOff />}{source.hidden ? uiText('auto.d97d1ee339e4') : uiText('auto.34d8b60fe253')}</span>
-          </Button>
-          <ConfirmRemove label={source.title || 'source'} onDelete={onDelete} />
-        </div>
-      </div>
-      <div className="map-source-grid">
-        {field(
-          uiText('pins.onlyInFolder'),
-          <DraftFolderField
-            value={source.folder ?? ''}
-            onCommit={(value) => onChange({ folder: value.trim() || undefined })}
-          />,
-          true
-        )}
-        {field(
-          uiText('auto.b82220d034e7'),
-          <DraftTextField
-            value={source.matchKey}
-            placeholder={uiText('auto.d0a3e7f81a98')}
-            ariaLabel={uiText('auto.b82220d034e7')}
-            onCommit={(value) => onChange({ matchKey: value.trim() })}
-          />
-        )}
-        {field(
-          uiText('auto.2bc9464d49e9'),
-          <DraftTextField
-            value={source.matchValue}
-            placeholder={uiText('auto.1a73af9e7ae0')}
-            ariaLabel={uiText('auto.163632fe1c50')}
-            onCommit={(value) => onChange({ matchValue: value.trim() })}
-          />
-        )}
-        {field(
-          uiText('auto.d219c68101f5'),
-          <div className="map-source-location">
-            <SelectField
-              value={source.locationMode}
-              onChange={(v) => {
-                const mode = v === 'coordinate' ? 'coordinate' : 'address'
-                onChange({ locationMode: mode, ...(['address', 'coordinates', ''].includes(source.locationField) ? { locationField: mode === 'coordinate' ? 'coordinates' : 'address' } : {}) })
-              }}
-              options={[
-                { value: 'address', label: uiText('auto.d70f93df5e8f') },
-                { value: 'coordinate', label: uiText('auto.8cde59838c57') }
-              ]}
-              ariaLabel={uiText('auto.d219c68101f5')}
-            />
+    <div className="map-source-editor">
+      <SourceGroup title={uiText('pins.group.notes')}>
+        <Row title={uiText('pins.folder')} description={uiText('pins.folderDescription')}>
+          <DraftFolderField value={source.folder ?? ''} onCommit={(value) => onChange({ folder: value.trim() || undefined })} />
+        </Row>
+        <Row title={uiText('pins.match')}>
+          <div className="settings-row-control map-source-match">
             <DraftTextField
-              value={source.locationField}
-              placeholder={source.locationMode === 'coordinate' ? uiText('auto.d27cafe12dda') : uiText('auto.c662180230ca')}
-              ariaLabel={uiText('pins.locationProperty')}
-              onCommit={(value) => onChange({ locationField: value.trim() || (source.locationMode === 'coordinate' ? 'coordinates' : 'address') })}
+              value={source.matchKey}
+              placeholder={uiText('auto.d0a3e7f81a98')}
+              ariaLabel={uiText('pins.matchProperty')}
+              onCommit={(value) => onChange({ matchKey: value.trim() })}
             />
-          </div>,
-          true
-        )}
-        <p className="map-source-help wide">{uiText(source.locationMode === 'coordinate' ? 'pins.coordinateHint' : 'pins.addressHint')}</p>
-        {field(
-          uiText('auto.768e0c1c6957'),
-          <div className="map-source-location">
-            <SelectField
+            <span className="map-source-match-eq" aria-hidden="true">=</span>
+            <DraftTextField
+              value={source.matchValue}
+              placeholder={uiText('auto.1a73af9e7ae0')}
+              ariaLabel={uiText('pins.matchValue')}
+              onCommit={(value) => onChange({ matchValue: value.trim() })}
+            />
+          </div>
+        </Row>
+      </SourceGroup>
+      <SourceGroup title={uiText('pins.group.location')}>
+        <Row title={uiText('pins.locationFrom')}>
+          <Segmented
+            value={source.locationMode}
+            ariaLabel={uiText('pins.locationFrom')}
+            options={[
+              { value: 'address', label: uiText('pins.mode.address') },
+              { value: 'coordinate', label: uiText('pins.mode.coordinates') }
+            ]}
+            onChange={(v) => {
+              const mode = v === 'coordinate' ? 'coordinate' : 'address'
+              onChange({ locationMode: mode, ...(['address', 'coordinates', ''].includes(source.locationField) ? { locationField: mode === 'coordinate' ? 'coordinates' : 'address' } : {}) })
+            }}
+          />
+        </Row>
+        <Row title={uiText('pins.locationProperty')} description={uiText(source.locationMode === 'coordinate' ? 'pins.coordinateHint' : 'pins.addressHint')}>
+          <DraftTextField
+            value={source.locationField}
+            placeholder={source.locationMode === 'coordinate' ? uiText('auto.d27cafe12dda') : uiText('auto.c662180230ca')}
+            ariaLabel={uiText('pins.locationProperty')}
+            onCommit={(value) => onChange({ locationField: value.trim() || (source.locationMode === 'coordinate' ? 'coordinates' : 'address') })}
+          />
+        </Row>
+      </SourceGroup>
+      <SourceGroup title={uiText('pins.group.pin')}>
+        <Row title={uiText('pins.look')}>
+          <div className="settings-row-control map-source-look">
+            <IconPicker icon={source.icon} onChange={(id) => onChange({ icon: id })} />
+            <div className="map-source-color">
+              <ColorChip variant="fill" value={source.color} label={uiText('auto.9c307613d98e')} onChange={(value) => onChange({ color: value })} />
+              <ColorChip variant="ring" value={source.borderColor} label={uiText('auto.eeffa83765fc')} onChange={(value) => onChange({ borderColor: value })} />
+            </div>
+          </div>
+        </Row>
+        <Row title={uiText('pins.pinTitle')}>
+          <div className="settings-row-control">
+            <Segmented
               value={source.labelMode}
-              onChange={(v) => onChange({ labelMode: v === 'property' ? 'property' : 'filename' })}
+              ariaLabel={uiText('pins.pinTitle')}
               options={[
                 { value: 'filename', label: uiText('auto.a3cbb98ddf5e') },
                 { value: 'property', label: uiText('auto.9ae33a7d0ecb') }
               ]}
-              ariaLabel={uiText('auto.768e0c1c6957')}
+              onChange={(v) => onChange({ labelMode: v === 'property' ? 'property' : 'filename' })}
             />
             {source.labelMode === 'property' && (
               <DraftTextField
                 value={source.labelField ?? ''}
-                placeholder={uiText('auto.b82220d034e7')}
-                ariaLabel={uiText('auto.ae2768cc445c')}
+                placeholder={uiText('pins.matchProperty')}
+                ariaLabel={uiText('pins.titleProperty')}
                 onCommit={(value) => onChange({ labelField: value.trim() || undefined })}
               />
             )}
-          </div>,
-          true
-        )}
-        {field(
-          uiText('auto.d97d1ee339e4'),
-          <HoverFieldsEditor value={source.hoverFields} onCommit={(next) => onChange({ hoverFields: next })} />,
-          true
-        )}
+          </div>
+        </Row>
+      </SourceGroup>
+      <SourceGroup title={uiText('pins.group.popup')}>
+        <Row title={uiText('pins.popupFields')} description={uiText('pins.popupFieldsDescription')}>
+          <ChipsField
+            items={source.hoverFields}
+            ariaLabel={uiText('pins.popupFields')}
+            placeholder={uiText('pins.popupFieldsPlaceholder')}
+            reorderable
+            removable
+            normalize={(value) => value.trim()}
+            onChange={(next) => onChange({ hoverFields: next.map((field) => field.trim()).filter(Boolean) })}
+          />
+        </Row>
+      </SourceGroup>
+      <div className="map-source-group">
+        <Row title={uiText('pins.use')} description={uiText('pins.useDescription')}>
+          <Toggle checked={!source.hidden} label={uiText('pins.use')} onChange={(on) => onChange({ hidden: !on })} />
+        </Row>
+        <Row title={uiText('pins.delete')} description={uiText('pins.deleteDescription')}>
+          <ConfirmRemove label={source.title || uiText('pins.untitled')} onDelete={onDelete} />
+        </Row>
       </div>
-      </div>}
     </div>
   )
 }
@@ -651,54 +620,57 @@ const PinsSection: FC = () => {
     commit(sources.map((s) => (s.id === id ? { ...s, ...patch } : s)))
 
   return (
-    <Section className="map-settings">
-      <div className="settings-listpage-header map-sources-header"><span>{uiText('auto.ae6a58048a94')}</span><api.ui.settings.Toggle label={uiText('sources.toggleAll')} checked={sources.length > 0 && sources.every(source => source.visible)} disabled={!sources.length || snap.loading} onChange={visible => commit(sources.map(source => ({ ...source, visible })))} /></div>
-      <p className="map-sources-description">{uiText('pins.description')}</p>
-      <Row title={uiText('pins.icons.title')} description={MAP_ICON_FOLDER}>
-        <Button variant="ghost" onClick={() => api.files.revealInFinder(MAP_ICON_FOLDER)}>{uiText('pins.icons.open')}</Button>
-        <Button variant="ghost" onClick={() => { void refreshMapIcons() }}>{uiText('sources.icons.refresh')}</Button>
-      </Row>
-      {saveError && <p role="alert" className="settings-path-error">{uiText('pins.saveError')}</p>}
-      {/* Never while the store is still reading: "no sources yet" is an answer,
-          and it must not be given before there is one. */}
-      {sources.length === 0 && !snap.loading && (
-        <Row title={uiText('auto.768b5398251f')} description={uiText('auto.d83b2865159e')} />
-      )}
-      {sources.length > 0 && <div className="search-field map-sources-search">
-        <input className="search-field-input" value={query} onChange={event => setQuery(event.target.value)} placeholder={uiText('pins.searchSources')} aria-label={uiText('pins.searchSources')} />
-      </div>}
-      {sources.length > 0 && shownSources.length === 0 && <p className="map-sources-description">{uiText('sources.noResults')}</p>}
-      <div className="map-source-list">
-      {shownSources.map((source) => (
-        <div key={source.id} className="map-source-sortable" {...reorder.getItemProps(source)}>
-        <SourceRow
-          key={source.id}
-          source={source}
-          initiallyExpanded={source.id === newSourceId}
-          handle={<button {...reorder.getHandleProps(source)} className="settings-reorder-handle map-source-grip" title={uiText('sources.reorder')}><GripVertical /></button>}
-          entries={indexEntries}
-          pinned={snap.sourcePinCounts[source.id] ?? 0}
-          onChange={(patch) => update(source.id, patch)}
-          onDelete={() => commit(sources.filter((s) => s.id !== source.id))}
-        />
+    <>
+      <Section className="map-settings">
+        <div className="settings-listpage-header map-sources-header"><span>{uiText('auto.ae6a58048a94')}</span><api.ui.settings.Toggle label={uiText('sources.toggleAll')} checked={sources.length > 0 && sources.every(source => source.visible)} disabled={!sources.length || snap.loading} onChange={visible => commit(sources.map(source => ({ ...source, visible })))} /></div>
+        <p className="map-sources-description">{uiText('pins.description')}</p>
+        {(sources.length > 0 || store !== null) && <div className="map-sources-toolbar">
+          {sources.length > 0 && <div className="search-field map-sources-search">
+            <input className="search-field-input" value={query} onChange={event => setQuery(event.target.value)} placeholder={uiText('pins.searchSources')} aria-label={uiText('pins.searchSources')} />
+          </div>}
+          {/* No store means nothing has read the file yet — adding here would write
+              an empty list over it, which is the failure this section exists to end. */}
+          {store !== null && <div className="map-add-source-row">
+            <Button
+              variant="secondary"
+              className="map-add-source"
+              onClick={() => { const source = defaultPinSource(sources); setQuery(''); setNewSourceId(source.id); commit([...sources, source]) }}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus /> {uiText('auto.3bab9497c30a')}</span>
+            </Button>
+          </div>}
+        </div>}
+        {saveError && <p role="alert" className="settings-path-error">{uiText('pins.saveError')}</p>}
+        {/* Never while the store is still reading: "no sources yet" is an answer,
+            and it must not be given before there is one. */}
+        {sources.length === 0 && !snap.loading && <p className="settings-empty-text map-sources-empty">
+          <span>{uiText('auto.768b5398251f')}</span><span>{uiText('auto.d83b2865159e')}</span>
+        </p>}
+        {sources.length > 0 && shownSources.length === 0 && <p className="settings-empty-text">{uiText('sources.noResults')}</p>}
+        <div className="map-source-list">
+          {shownSources.map((source) => (
+            <div key={source.id} className="map-source-sortable" {...reorder.getItemProps(source)}>
+              <SourceRow
+                source={source}
+                initiallyExpanded={source.id === newSourceId}
+                handle={<button {...reorder.getHandleProps(source)} className="settings-reorder-handle map-source-grip" title={uiText('sources.reorder')}><GripVertical /></button>}
+                entries={indexEntries}
+                pinned={snap.sourcePinCounts[source.id] ?? 0}
+                onChange={(patch) => update(source.id, patch)}
+                onDelete={() => commit(sources.filter((s) => s.id !== source.id))}
+              />
+            </div>
+          ))}
+          {reorder.liveRegion}
         </div>
-      ))}
-      {reorder.liveRegion}
-      </div>
-      {/* No store means nothing has read the file yet — adding here would write
-          an empty list over it, which is the failure this section exists to end. */}
-      {store !== null && (
-        <div className="map-add-source-row">
-        <Button
-          variant="secondary"
-          className="map-add-source"
-          onClick={() => { const source = defaultPinSource(sources); setQuery(''); setNewSourceId(source.id); commit([...sources, source]) }}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus /> {uiText('auto.3bab9497c30a')}</span>
-        </Button>
-        </div>
-      )}
-    </Section>
+      </Section>
+      <Section className="map-settings">
+        <Row title={uiText('pins.icons.title')} description={MAP_ICON_FOLDER}>
+          <Button variant="ghost" onClick={() => api.files.revealInFinder(MAP_ICON_FOLDER)}>{uiText('pins.icons.open')}</Button>
+          <Button variant="ghost" onClick={() => { void refreshMapIcons() }}>{uiText('sources.icons.refresh')}</Button>
+        </Row>
+      </Section>
+    </>
   )
 }
 

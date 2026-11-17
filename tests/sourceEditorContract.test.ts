@@ -19,13 +19,20 @@ describe('source editor control contract', () => {
     expect(view.indexOf('variant="fill"')).toBeLessThan(view.indexOf('variant="ring"'))
   })
 
-  it.each(SURFACES)('$name gives Hide and Delete a glyph on a kit Button', ({ view }) => {
-    for (const glyph of ['<Eye />', '<EyeOff />', '<Trash />', '<Plus />']) {
+  it.each(SURFACES)('$name gives Delete and Add source a glyph on a kit Button', ({ view }) => {
+    for (const glyph of ['<Trash />', '<Plus />']) {
       expect(view, `${glyph} missing`).toContain(glyph)
     }
-    // A raw <button> for these two is how the Calendar's row ended up without
+    // A raw <button> for these is how the Calendar's row ended up without
     // any glyph at all while the Map's had both.
     expect(view).not.toMatch(/<button\s+type="button"\s+className="[a-z-]*source-toggle/)
+  })
+
+  it.each(SURFACES)('$name turns a source off with a switch, not a Hide/Show text button', ({ view }) => {
+    expect(view).toContain("checked={!source.hidden}")
+    expect(view).toContain('onChange({ hidden: !on })')
+    expect(view).not.toContain('<EyeOff />')
+    expect(view).not.toContain('auto.ea463ac7f93c')
   })
 
   it.each(SURFACES)('$name passes palette colours as custom properties', ({ view }) => {
@@ -56,17 +63,30 @@ describe('source editor control contract', () => {
     }
   })
 
-  it('uses the shared card radius', () => {
-    const radii = SURFACES.map(({ css, prefix }) => {
+  it('draws one flat list separated by hairlines, not cards', () => {
+    for (const { css, prefix } of SURFACES) {
       const rule = ruleFor(css, `.${prefix}-row`)
-      return /border-radius:\s*([^;]+);/.exec(rule)?.[1].trim()
-    })
-    expect(radii[0]).toBe('var(--radius)')
+      expect(rule).toMatch(/border-bottom:\s*1px solid var\(--border-light\)/)
+      for (const property of ['border-radius', 'box-shadow', 'background', 'border:']) {
+        expect(rule, `${prefix}-row restates ${property}`).not.toContain(property)
+      }
+      expect(css).not.toContain(`.${prefix}-row:hover`)
+      expect(ruleFor(css, `.${prefix}-head`)).toContain('grid-template-columns:22px 22px 24px minmax(0, 1fr) auto auto')
+    }
+  })
+
+  it('removes the old card editor rules', () => {
+    for (const { css } of SURFACES) {
+      for (const gone of ['.map-source-tools', '.map-source-grid', '.map-source-field', '.map-source-location', '.map-source-hover', '.map-source-help', '.map-add-field']) {
+        expect(css, `${gone} is still styled`).not.toContain(gone)
+      }
+    }
   })
 
   it('states what each source currently finds', () => {
     for (const { view, css, prefix } of SURFACES) {
       expect(view).toContain('const MatchStats')
+      expect(view).toContain('sourceStats(entries, source)')
       expect(css).toContain(`.${prefix}-stats`)
       expect(css).toContain(`.${prefix}-stats.warn`)
     }

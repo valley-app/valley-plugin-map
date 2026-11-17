@@ -10,11 +10,14 @@ import {
   matchNotes,
   matchSignature,
   normalizeAddress,
+  notLocatedYet,
   parseFieldList,
   pendingAddress,
   pinTitle,
   resolvePinLocation,
+  ruleSummary,
   sanitizePinSource,
+  sourceStats,
   toDisplay,
   type GeoCache
 } from '../src/pinSources'
@@ -199,6 +202,48 @@ describe('matchNotes', () => {
   })
   it('returns nothing when the source is incomplete', () => {
     expect(matchNotes(entries, source({ matchValue: '' }))).toEqual([])
+  })
+})
+
+describe('ruleSummary', () => {
+  it('reads the rule as key = value', () => {
+    expect(ruleSummary(source())).toBe('type = contact')
+  })
+  it('is empty while the rule is unfinished', () => {
+    expect(ruleSummary(source({ matchValue: '' }))).toBe('')
+    expect(ruleSummary(source({ matchKey: '' }))).toBe('')
+  })
+})
+
+describe('sourceStats', () => {
+  const entries: IndexEntry[] = [
+    entry('Field/coords.md', { type: 'contact', lat: 47.1, lng: 8.1 }),
+    entry('Field/address.md', { type: 'contact', address: 'Fern Reserve' }),
+    entry('Field/none.md', { type: 'contact' }),
+    entry('Field/other.md', { type: 'project', lat: 1, lng: 1 })
+  ]
+
+  it('counts matched, locatable and awaiting notes', () => {
+    expect(sourceStats(entries, source())).toEqual({ matched: 3, locatable: 1, awaiting: 1 })
+  })
+  it('never waits on the geocoder in coordinate mode', () => {
+    expect(sourceStats(entries, source({ locationMode: 'coordinate', locationField: 'coordinates' }))).toEqual({ matched: 3, locatable: 1, awaiting: 0 })
+  })
+  it('is all zero for an unfinished rule', () => {
+    expect(sourceStats(entries, source({ matchValue: '' }))).toEqual({ matched: 0, locatable: 0, awaiting: 0 })
+  })
+})
+
+describe('notLocatedYet', () => {
+  it('counts the located-or-awaiting notes not yet on the map', () => {
+    const stats = { matched: 24, locatable: 18, awaiting: 4 }
+    expect(notLocatedYet(stats, 18)).toBe(4)
+    expect(notLocatedYet(stats, 21)).toBe(1)
+    expect(notLocatedYet(stats, 22)).toBe(0)
+  })
+  it('never goes below zero', () => {
+    expect(notLocatedYet({ matched: 3, locatable: 0, awaiting: 0 }, 0)).toBe(0)
+    expect(notLocatedYet({ matched: 2, locatable: 1, awaiting: 0 }, 5)).toBe(0)
   })
 })
 

@@ -796,6 +796,8 @@ const CSS = `
 .map-pin-popup { min-width:120px; max-width:240px; padding:8px 10px; }
 .map-pin-popup-title { font-size:0.78125rem; font-weight:600; color:var(--text-color); margin-bottom:3px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-stop-popup .map-pin-popup { min-width:0; padding:4px 8px; }
+.map-stop-popup .map-pin-popup-title { margin-bottom:0; }
 .map-pin-popup-row { display:flex; gap:8px; font-size:0.71875rem; line-height:1.5; }
 .map-pin-popup-row > span:first-child { color:var(--text-tertiary, var(--text-secondary));
   text-transform:capitalize; flex:0 0 auto; }
@@ -816,24 +818,64 @@ const CSS = `
 .map-usage-value { display:flex; flex-direction:column; gap:4px; overflow-wrap:anywhere; }
 .map-usage-detail { color:var(--text-secondary); font-size:var(--smaller-font-size); }
 .map-usage-note { margin-top:var(--space-3); }
-.map-source-row { display:flex; flex-direction:column; gap:12px; padding:14px 16px; margin:10px 0;
-  border:1px solid var(--border-light); border-radius:var(--radius); background:var(--container-color-alt);
-  transition:border-color .15s ease, box-shadow .15s ease; }
-.map-source-row:hover { border-color:var(--border-medium); box-shadow:0 1px 3px rgba(0,0,0,.05); }
-.map-source-head { display:flex; align-items:center; flex-wrap:wrap; gap:10px; min-width:0; }
-.map-source-head > .settings-path-input, .map-source-head > .settings-input-stack,
-.map-source-head > [data-plugin-widget]:not([data-plugin-widget-inline]) { flex:1 1 150px; min-width:0; }
-.map-source-summary { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:3px; border:0; padding:0; background:none; color:var(--text-color); font:inherit; text-align:left; cursor:pointer; }
-.map-source-summary span { font-weight:600; }
-.map-source-summary small { font-size:var(--smaller-font-size); color:var(--text-secondary); overflow-wrap:anywhere; }
-.map-source-head .map-source-title { width:100%; min-width:0; }
-.map-source-swatch { width:30px; height:30px; flex-shrink:0; border-radius:var(--radius); display:grid;
-  place-items:center; box-sizing:border-box; padding:0; cursor:pointer; transition:transform .12s ease;
-  background:var(--swatch-fill); border:2px solid var(--swatch-ring);
-  color:var(--swatch-on); box-shadow:0 1px 2px rgba(0,0,0,.15); }
-button.map-source-swatch:hover { transform:scale(1.06); }
-.map-source-swatch svg { width:16px; height:16px; }
-.map-pin-icon-browser { width:248px; max-width:calc(100vw - 32px); padding:6px; box-sizing:border-box; }
+/* Pin sources: one flat list on fixed columns, rows split by the shared hairline. */
+.map-sources-toolbar { display:flex; align-items:center; gap:var(--space-2); margin:0 0 var(--space-2); min-width:0; }
+.map-sources-toolbar .map-sources-search { flex:1 1 auto; min-width:0; margin:0; }
+.map-sources-search input { width:100%; min-width:0; border:0; background:none; outline:0; box-shadow:none; color:inherit; }
+.map-sources-search input:focus, .map-sources-search input:focus-visible,
+.map-pin-icon-browser .search-field input:focus, .map-pin-icon-browser .search-field input:focus-visible {
+  border:0; outline:none; box-shadow:none; background:none;
+}
+.map-add-source-row { display:flex; align-items:center; flex:0 0 auto; padding:2px; margin-right:-2px; }
+.map-add-source { display:inline-flex; align-items:center; justify-content:center; gap:6px; width:auto; margin:0; min-height:28px; padding:5px 10px; border:1px solid var(--border-medium); border-radius:var(--radius); background:var(--hover-bg); color:var(--text-color); font:inherit; }
+.map-add-source svg { display:block; width:14px; height:14px; flex-shrink:0; padding:0; background:none; }
+.map-add-source:hover { background:var(--selected-bg, var(--hover-bg)); border-color:var(--accent-color); }
+.map-sources-empty > span { display:block; }
+.map-source-list { display:flex; flex-direction:column; min-width:0; container-type:inline-size; }
+.map-source-sortable { position:relative; min-width:0; }
+/* The reorder announcement: the SDK 8.4 frame styles lack the shared visually-hidden rule. */
+.map-source-list > .settings-visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.map-source-sortable[data-drop-position]::before { content:''; position:absolute; z-index:2; left:0; right:0; height:var(--drop-knob, 6px); margin:0; background:var(--drop-indicator-fill, var(--accent-color)); pointer-events:none; }
+.map-source-list .map-source-sortable[data-drop-position='before']::before { top:0; transform:translateY(-50%); }
+.map-source-list .map-source-sortable[data-drop-position='after']::before { bottom:0; transform:translateY(50%); }
+.map-source-row { min-width:0; border-bottom:1px solid var(--border-light); }
+.map-source-head { display:grid; grid-template-columns:22px 22px 24px minmax(0, 1fr) auto auto; align-items:center; column-gap:8px;
+  min-height:44px; padding:4px 0; box-sizing:border-box; min-width:0; }
+.map-source-grip, .map-source-disclosure { display:grid; place-items:center; width:22px; height:28px; border:0; border-radius:var(--radius-sm); padding:0; margin:0; background:none; color:var(--text-secondary); cursor:pointer; }
+.map-source-grip { cursor:grab; color:var(--text-tertiary); }
+.map-source-grip:active { cursor:grabbing; }
+.map-source-grip:hover, .map-source-disclosure:hover { background:var(--hover-bg); color:var(--text-color); }
+.map-source-grip svg, .map-source-disclosure svg { display:block; width:16px; height:16px; }
+.map-source-disclosure[aria-expanded='true'] svg { transform:rotate(90deg); }
+.map-source-disc { display:grid; place-items:center; width:24px; height:24px; box-sizing:border-box; border-radius:50%;
+  background:var(--swatch-fill); border:2px solid var(--swatch-ring); color:var(--swatch-on); box-shadow:0 0 0 1px var(--border-light); }
+.map-source-disc svg { width:12px; height:12px; }
+.map-source-meta { display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0; }
+button.map-source-meta { border:0; padding:0; margin:0; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.map-source-meta > .map-source-title { width:100%; min-width:0; justify-content:flex-start; }
+.map-source-name { font-weight:600; color:var(--text-color); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-source-name.is-placeholder { color:var(--text-secondary); }
+.map-source-sub { font-size:var(--smaller-font-size); color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-source-warn { color:var(--tint-red-text, #b91c1c); }
+.map-source-count { min-width:3ch; text-align:right; font-size:var(--smaller-font-size); font-variant-numeric:tabular-nums; color:var(--text-secondary); }
+.map-source-row.is-off .map-source-name, .map-source-row.is-off .map-source-sub, .map-source-row.is-off .map-source-count { color:var(--text-tertiary, var(--text-secondary)); }
+.map-source-row.is-off .map-source-disc { opacity:.45; }
+/* What the source currently finds — a rule matching nothing must not stay silent. */
+.map-source-stats { margin:0; font-size:var(--smaller-font-size); font-variant-numeric:tabular-nums; color:var(--text-secondary);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-source-stats.warn { color:var(--tint-red-text, #b91c1c); }
+.map-source-editor { min-width:0; padding:0 0 var(--space-3) calc(22px + 22px + 24px + 3 * 8px); }
+.map-source-group { margin-top:var(--space-3); min-width:0; }
+.map-source-group > .settings-label { margin:0 0 var(--space-1); }
+.map-source-group:last-child > .settings-path-row:last-child { border-bottom:0; }
+.map-source-match { flex-wrap:nowrap; }
+.map-source-match > [data-plugin-widget], .map-source-match > .settings-path-input { flex:1 1 0; min-width:0; }
+.settings-row-control.map-source-look { justify-content:flex-start; }
+.map-source-match-eq { flex:0 0 auto; color:var(--text-secondary); }
+.map-source-icon-btn { display:grid; place-items:center; flex:0 0 auto; width:28px; height:28px; box-sizing:border-box; padding:0;
+  border:1px solid var(--border-medium); border-radius:50%; background:none; color:var(--text-color); cursor:pointer; }
+.map-source-icon-btn svg { width:16px; height:16px; }
+.map-pin-icon-browser { width:100%; padding:6px; box-sizing:border-box; }
 .map-pin-icon-browser .search-field { width:100%; box-sizing:border-box; }
 .map-pin-icon-browser .search-field input { width:100%; min-width:0; border:0; background:none; color:inherit; outline:none; box-shadow:none; }
 .map-icon-grid { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:4px; padding:8px 0;
@@ -844,98 +886,29 @@ button.map-source-swatch:hover { transform:scale(1.06); }
 .map-pin-icon-browser .map-hint { font-size:0.6875rem; line-height:1.4; margin:4px 0 8px; }
 .map-icon-opt:hover { background:var(--hover-bg); color:var(--text-color); }
 .map-icon-opt.active { border-color:var(--accent-color); background:var(--hover-bg); color:var(--accent-color); }
-.map-icon-opt:focus-visible, .map-source-swatch:focus-visible, .map-source-disclosure:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
 .map-icon-actions { display:flex; flex-wrap:wrap; gap:8px; }
-.map-source-title { flex:1; min-width:0; border-color:transparent; background:transparent;
-  font-size:0.875rem; font-weight:600; }
-.map-source-title:hover { background:var(--hover-bg); }
-.map-source-title:focus { border-color:var(--border-medium); background:var(--surface-color); }
-.map-source-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 12px; }
-.map-source-field { display:flex; flex-direction:column; gap:5px; min-width:0; }
-.map-source-grid > .wide { grid-column:1 / -1; }
-.map-source-field > label { font-size:0.625rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
-  color:var(--text-tertiary, var(--text-secondary)); }
-.map-source-grid .settings-input-stack, .map-source-grid .settings-path-field,
-.map-source-grid .settings-path-control, .map-source-grid .settings-select, .map-source-grid .settings-select-trigger,
-.map-source-grid .settings-path-input { width:100%; min-width:0; max-width:100%; box-sizing:border-box; }
-.map-source-grid [data-plugin-widget] { min-width:0; }
-.map-source-hover-row > [data-plugin-widget]:not([data-plugin-widget-inline]) { flex:1; min-width:0; }
-.map-source-grid .settings-input-stack { gap:4px; }
-.map-source-field > label { margin:0; position:static; }
-.map-source-field .settings-path-error { position:static; white-space:normal; margin:4px 0 0; }
-.map-source-help { margin:0; color:var(--text-secondary); font-size:0.75rem; line-height:1.5; }
-.map-source-disclosure { align-self:flex-start; border:0; background:none; color:var(--text-secondary); padding:0; font:inherit; font-size:0.75rem; cursor:pointer; }
-.map-source-row { container-type:inline-size; }
-.map-sources-search { margin:12px 0; }
-.map-sources-search input { width:100%; min-width:0; border:0; background:none; outline:0; box-shadow:none; color:inherit; }
-.map-sources-search input:focus, .map-sources-search input:focus-visible,
-.map-pin-icon-browser .search-field input:focus, .map-pin-icon-browser .search-field input:focus-visible {
-  border:0; outline:none; box-shadow:none; background:none;
-}
-@container (max-width:480px) {
-  .map-source-grid { grid-template-columns:minmax(0, 1fr); }
-  .map-source-grid .map-source-location { grid-template-columns:minmax(0, 1fr); }
-}
-
 /* Layout only — the kit's ColorField owns the chip itself, including the
    fill/ring drawing. Sizing the two up from the kit's default 20px is the only
    thing this surface asks of it, and the Calendar's note-date row asks for the
    same 26px, so the pair read as one control in both places. */
 .map-source-color { display:flex; align-items:center; gap:6px; flex:0 0 auto; }
 .map-source-color .settings-color-swatch { width:26px; height:26px; }
-.map-source-location { display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items:start; gap:8px; }
-.map-source-location .settings-path-input { flex:1; min-width:0; }
-.map-source-hover { display:flex; flex-direction:column; align-items:stretch; gap:6px; }
-.map-source-hover-row { display:flex; align-items:center; gap:6px; width:100%; }
-.map-source-hover-row .settings-path-input { flex:1; min-width:0; }
-.map-source-hover-remove { flex:0 0 auto; width:28px; height:28px; display:grid; place-items:center;
-  border:none; border-radius:var(--radius); background:none; color:var(--text-tertiary, var(--text-secondary));
-  cursor:pointer; font-size:1.0625rem; line-height:1; opacity:.5; transition:opacity .12s ease, background .12s ease; }
-.map-source-hover-row:hover .map-source-hover-remove { opacity:1; }
-.map-source-hover-remove:hover { background:var(--hover-bg); color:var(--text-color); }
-/* What the source currently finds — a rule matching nothing must not stay silent. */
-.map-source-stats { margin:0; font-size:0.71875rem; font-variant-numeric:tabular-nums;
-  color:var(--text-tertiary, var(--text-secondary)); }
-.map-source-stats.warn { color:var(--tint-red-text, #b91c1c); }
-.map-source-actions { display:flex; align-items:center; gap:6px; flex:0 0 auto; }
 /* Layout only — these are kit Buttons, which own the frame, padding and
    typography. Same three rules on the Calendar's note-date row. */
-.map-source-toggle { gap:5px; }
-.map-source-toggle svg { width:14px; height:14px; }
-.map-add-source-row { padding:12px 0 8px; }
-
-
-.map-source-list { display:flex; flex-direction:column; gap:12px; }
-.map-source-list .map-source-row { margin:0; padding:12px; gap:10px; }
-.map-source-sortable { position:relative; min-width:0; }
-.map-source-sortable[data-drop-position]::before { content:''; position:absolute; z-index:2; left:0; right:0; height:var(--drop-knob, 6px); margin:0; background:var(--drop-indicator-fill, var(--accent-color)); pointer-events:none; }
-.map-source-list .map-source-sortable[data-drop-position='before']::before { top:-6px; transform:translateY(-50%); }
-.map-source-list .map-source-sortable[data-drop-position='after']::before { bottom:-6px; transform:translateY(50%); }
-.map-sidebar-list .map-source-sortable[data-drop-position='before']::before { top:0; transform:translateY(-50%); }
-.map-sidebar-list .map-source-sortable[data-drop-position='after']::before { bottom:0; transform:translateY(50%); }
-.map-source-head { flex-wrap:nowrap; min-width:0; gap:8px; }
-.map-source-grip, .map-source-disclosure { display:grid; place-items:center; flex:0 0 22px; width:22px; height:28px; align-self:center; border:0; border-radius:var(--radius-sm); padding:0; margin:0; background:none; color:var(--text-secondary); cursor:pointer; }
-.map-source-grip { cursor:grab; color:var(--text-tertiary); }
-.map-source-grip:active { cursor:grabbing; }
-.map-source-grip:hover, .map-source-disclosure:hover { background:var(--hover-bg); color:var(--text-color); }
-.map-source-grip svg, .map-source-disclosure svg { display:block; width:16px; height:16px; }
-.map-source-disclosure[aria-expanded='true'] svg, .map-sources-heading[aria-expanded='true'] > svg { transform:rotate(90deg); }
-.map-source-summary { flex:1; min-width:0; border:0; padding:0; background:none; color:var(--text-color); font:inherit; font-weight:600; text-align:left; cursor:pointer; overflow-wrap:anywhere; }
-.map-source-head > [data-plugin-widget-inline] { flex:0 0 auto; }
-.map-source-details { display:flex; flex-direction:column; gap:12px; min-width:0; }
-.map-source-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
-.map-source-toggle { display:inline-flex; align-items:center; justify-content:center; }
-.map-source-toggle svg { display:block; flex:0 0 auto; vertical-align:middle; }
-.map-add-source-row { display:flex; align-items:center; padding:12px 0 4px; }
-.map-add-source { display:inline-flex; align-items:center; justify-content:center; gap:6px; width:auto; margin:0; min-height:28px; padding:5px 10px; border:1px solid var(--border-medium); border-radius:var(--radius); background:var(--hover-bg); color:var(--text-color); font:inherit; }
-.map-add-source svg, .map-add-field svg { display:block; width:14px; height:14px; flex-shrink:0; padding:0; background:none; }
-.map-add-source:hover { background:var(--selected-bg, var(--hover-bg)); border-color:var(--accent-color); }
-.map-add-field { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; }
+.map-source-toggle { display:inline-flex; align-items:center; justify-content:center; gap:5px; }
+.map-source-toggle svg { display:block; flex:0 0 auto; width:14px; height:14px; vertical-align:middle; }
+.map-icon-opt:focus-visible, .map-source-icon-btn:focus-visible, .map-source-disclosure:focus-visible, button.map-source-meta:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+@container (max-width:480px) {
+  .map-source-editor { padding-left:0; }
+}
+/* A narrow frame stacks settings rows (SDK breakpoint): the match pair then spans the row like the other fields. */
+@media (max-width:640px) {
+  .settings-row-control.map-source-match { width:100%; }
+}
 .map-sources-header { display:flex; align-items:center; gap:8px; flex:0 0 var(--app-bar-height, 38px); height:var(--app-bar-height, 38px); min-height:var(--app-bar-height, 38px); box-sizing:border-box; padding:0 10px; border-bottom:1px solid var(--border-light); font-size:var(--small-font-size); font-weight:600; background:var(--container-color); }
-.map-sources-header > span:first-child, .map-sources-heading { flex:1; min-width:0; }
+.map-sources-header > span:first-child { flex:1; min-width:0; }
 .map-sources-description { margin:10px 0; color:var(--text-secondary); font-size:var(--smaller-font-size); line-height:1.5; }
 .map-sidebar-sources { flex:0 0 auto; min-height:0; }
-.map-sidebar-sources .map-sources-header { position:sticky; top:0; z-index:1; }
 .map-sidebar-list { padding:4px 6px; }
 .map-sidebar-row { display:flex; align-items:center; gap:4px; min-height:36px; min-width:0; }
 .map-sidebar-row:hover { background:var(--hover-bg); border-radius:var(--radius); }
@@ -978,9 +951,8 @@ button.map-source-swatch:hover { transform:scale(1.06); }
    settings caret's open state, the flipped Back chevron), and killing those
    moves them rather than calming them. */
 @media (prefers-reduced-motion: reduce) {
-  .map-rc-close, .map-icon-opt,
-  .map-source-row, .map-source-swatch, .map-source-toggle, .map-source-hover-remove,
-  .map-add-field, .map-add-source, .map-rc-hero {
+  .map-rc-close, .map-icon-opt, .map-source-toggle,
+  .map-add-source, .map-rc-hero {
     transition:none; animation:none;
   }
   /* The spinner is the one animation that carries meaning, so it degrades to a
