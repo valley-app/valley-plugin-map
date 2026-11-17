@@ -62,7 +62,6 @@ export function mapServices(api: ValleyPluginApi, request?: { id: string; check(
     publicJson: (payload: PublicMapRequest) => call<{ status: number; json: unknown }>('publicJson', payload),
     sidebarPlugins: (ids: string[]) => api.backend.call<{ plugins: SidebarPluginInfo[] }>('sidebarPlugins', { ids }),
     resource: (url: string) => api.backend.call<{ bodyBase64: string }>('resource', { url }),
-    offlineRange: (payload: { path: string; offset: number; length: number }) => api.backend.call<{ bodyBase64: string; etag?: string }>('offlineRange', payload),
     tile: (payload: { connectionId: string; style: string; z: number; x: number; y: number }) => api.backend.call<{ bodyBase64: string }>('tile', payload)
   }
 }

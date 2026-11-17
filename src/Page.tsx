@@ -297,7 +297,6 @@ export const Page: FC<MainWorkspaceViewProps> = ({ instanceId }) => {
           <button
             className="map-round-btn"
             onClick={() => store.setColorMode(nextColorMode)}
-            disabled={Boolean(store.settings().offlineBasemapPath)}
             aria-label={colorModeAction}
             title={colorModeAction}
           >

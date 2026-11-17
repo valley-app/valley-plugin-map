@@ -121,7 +121,7 @@ export const MapProviderSelect: FC<{ settingKey?: string }> = ({ settingKey = 'b
   return <>
     <SelectField className="map-select-fill" ariaLabel={uiText('surface.provider')}
       value={knownChoice(settingKey === 'basemapProvider' ? effectiveBasemapProvider(settings) : String(values[settingKey] || 'inherit'), options)} options={options}
-      placeholder={uiText('provider.unavailable')} disabled={busy || Boolean(settings.offlineBasemapPath)}
+      placeholder={uiText('provider.unavailable')} disabled={busy}
       onChange={value => { void choose(value) }} />
     {error && <span role="alert">{uiText('surface.invalid')}</span>}
   </>
@@ -166,7 +166,6 @@ export const ProviderPanel: FC<{ routing?: boolean }> = ({ routing = false }) =>
     ...secondaryAccounts.map((connection) => connectionOption(connection, accountProviderChoice(connection.provider, connection.id)))
   ]
   const accountOptions = accounts.map((connection) => connectionOption(connection))
-  const offline = !routing && Boolean(settings.offlineBasemapPath)
   const usageRoles = (routing ? [['routing', primaryValue], ['elevation', secondaryValue]] as const : []).flatMap(([service, value]) => {
     const account = parseAccountProviderChoice(value)
     return account?.provider === 'openrouteservice' ? [{ service, connection: connections.find((entry) => entry.id === account.connectionId) }] : []
@@ -175,12 +174,11 @@ export const ProviderPanel: FC<{ routing?: boolean }> = ({ routing = false }) =>
 
   return <div className="right-panel-body props-info map-provider-panel">
     <p className="map-provider-description">{uiText(routing ? 'provider.routingDescription' : 'provider.description')}</p>
-    {offline && <p className="map-provider-description">{uiText('provider.offline')}</p>}
     <dl className="props-info-table">
       <div className="props-info-row map-props-control-row">
         <dt className="props-info-key">{primaryLabel}</dt>
         <dd className="props-info-value">
-          <SelectField className="map-select-fill" ariaLabel={primaryLabel} value={selected?.provider ?? fallback} disabled={busy || offline} options={[
+          <SelectField className="map-select-fill" ariaLabel={primaryLabel} value={selected?.provider ?? fallback} disabled={busy} options={[
             { value: fallback, label: uiText(routing ? 'provider.osrm' : 'provider.free') },
             ...providers.map((provider) => ({ value: provider, label: providerName(provider) }))
           ]} onChange={(provider) => {
@@ -195,7 +193,7 @@ export const ProviderPanel: FC<{ routing?: boolean }> = ({ routing = false }) =>
         <dd className="props-info-value">
           {selected ? <SelectField className="map-select-fill" value={knownChoice(selected.connectionId, accountOptions)} ariaLabel={uiText('provider.account')}
             options={accountOptions} placeholder={uiText('provider.unavailable')}
-            disabled={busy || offline || accountOptions.length === 0}
+            disabled={busy || accountOptions.length === 0}
             onChange={(value) => { const connection = accounts.find((account) => account.id === value); if (connection) choosePrimary(connection) }} /> : uiText('provider.noAccount')}
         </dd>
       </div>

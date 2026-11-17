@@ -880,10 +880,10 @@ describe('Map service roles', () => {
     expect(mock.api.settings.get()).toMatchObject({ basemapProvider: mapChoice, searchProvider: mapChoice, elevationProvider: 'none', openRouteServiceConnectionId: 'survey-route' })
   })
 
-  it('keeps routing available with an offline map and changes elevation independently', async () => {
+  it('keeps routing available and changes elevation independently', async () => {
     const connection = { id: 'field-route', provider: 'openrouteservice', displayName: 'Field route', capabilities: ['geo.route', 'geo.elevation'], secretState: 'ok' as const }
     const mock = createMockValleyApi({
-      manifest: { id: 'map', drivers: [] }, settings: { offlineBasemapPath: 'maps/field.pmtiles', routingProvider: 'osrm' },
+      manifest: { id: 'map', drivers: [] }, settings: { routingProvider: 'osrm' },
       overrides: { backend: mapBackend({ listConnections: async () => ({ ok: true, data: { connections: [connection] } }) }) }
     })
     initLocalization(mock.api)
@@ -893,7 +893,7 @@ describe('Map service roles', () => {
     const elevation = screen.getByRole('combobox', { name: 'Elevation provider' })
     fireEvent.change(elevation, { target: { value: within(elevation).getByRole('option', { name: 'Field route' }).getAttribute('value') } })
     await waitFor(() => expect(mock.api.settings.get().elevationProvider).toBe(accountProviderChoice('openrouteservice', connection.id)))
-    expect(mock.api.settings.get()).toMatchObject({ openRouteServiceEnabled: true, routingProvider: 'osrm', offlineBasemapPath: 'maps/field.pmtiles' })
+    expect(mock.api.settings.get()).toMatchObject({ openRouteServiceEnabled: true, routingProvider: 'osrm' })
   })
 
   it('reports an unavailable selected account and failed saves without claiming a switch succeeded', async () => {

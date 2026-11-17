@@ -52,7 +52,6 @@ export function register(api: PluginBackendApi): () => void {
   } })
   initBackendLocalization(api)
   const requests = createBackendRequests(api.network)
-  const offlineFiles = new Map<string, Promise<{ handle: string; sha1?: string }>>()
   const usage = new Map<string, MapUsageQuota[]>()
   const captureUsage = (id: string, service: MapUsageQuota['service'], response: PluginFetchResponse) => {
     const headers = Object.fromEntries(Object.entries(response.headers).map(([name, value]) => [name.toLowerCase(), value]))
@@ -214,33 +213,6 @@ export function register(api: PluginBackendApi): () => void {
     if (response.status !== 200) throw new Error(uiText('backend.resource', { status: response.status }))
     return { bodyBase64: response.bodyBase64 }
   }, false)
-  handle('offlineRange', async ({ path: input, offset, length }) => {
-    const path = text(input)
-    if (!path.endsWith('.pmtiles') || typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0 || typeof length !== 'number' || !Number.isSafeInteger(length) || length < 1 || length > 4 * 1024 * 1024) throw new Error(uiText('backend.archiveRange'))
-    let pending = offlineFiles.get(path)
-    if (!pending) {
-      if (offlineFiles.size >= 16) throw new Error(uiText('backend.archives'))
-      pending = api.files.openRealm(path)
-      offlineFiles.set(path, pending)
-      void pending.catch(() => offlineFiles.delete(path))
-    }
-    const file = await pending
-    const chunks: Uint8Array[] = []
-    let read = 0
-    while (read < length) {
-      const result = await api.files.read(file.handle, { offset: offset + read, maxBytes: Math.min(length - read, 1024 * 1024) })
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0))
-      chunks.push(bytes)
-      read += bytes.length
-      if (result.done || !bytes.length) break
-    }
-    const bytes = new Uint8Array(read)
-    let index = 0
-    for (const chunk of chunks) { bytes.set(chunk, index); index += chunk.length }
-    let binary = ''
-    for (let offset = 0; offset < bytes.length; offset += 32768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768))
-    return { bodyBase64: btoa(binary), etag: file.sha1 }
-  }, false)
   const appLanguage = (): string | undefined => {
     try { return api.i18n.language() } catch { return undefined }
   }
@@ -282,5 +254,5 @@ export function register(api: PluginBackendApi): () => void {
     }
     return { status: response.status, json }
   }, false, true)
-  return () => { workflow.dispose(); void requests.dispose(); for (const dispose of disposers.reverse()) dispose(); usage.clear(); if (offlineFiles.size) void Promise.allSettled([...offlineFiles.values()]).then((entries) => api.files.release(entries.flatMap((entry) => entry.status === 'fulfilled' ? [entry.value.handle] : []))); offlineFiles.clear() }
+  return () => { workflow.dispose(); void requests.dispose(); for (const dispose of disposers.reverse()) dispose(); usage.clear() }
 }

@@ -334,16 +334,12 @@ describe('Map package backend', () => {
     } finally { mock.dispose() }
   })
 
-  it('loads style assets and bounded offline archive ranges only through package backend capabilities', async () => {
+  it('loads style assets only through package backend capabilities', async () => {
     const mock = setup()
     mock.fetch.mockResolvedValue({ status: 200, headers: {}, bodyBase64: 'dGlsZQ==' })
     expect(await mock.call('resource', { url: 'https://basemaps.cartocdn.com/gl/style.json' })).toEqual({ bodyBase64: 'dGlsZQ==' })
     await expect(mock.call('resource', { url: 'https://unrelated.example.test/private' })).rejects.toThrow('Unknown map resource host')
     expect(mock.fetch).toHaveBeenCalledTimes(1)
-    expect(await mock.call('offlineRange', { path: 'Maps/local.pmtiles', offset: 2, length: 5 })).toEqual({ bodyBase64: Buffer.from('chive').toString('base64'), etag: 'unchanged' })
-    expect(mock.files.read).toHaveBeenCalledWith('archive', { offset: 2, maxBytes: 5 })
-    await expect(mock.call('offlineRange', { path: 'Maps/local.pmtiles', offset: -1, length: 1 })).rejects.toThrow('range')
-    await expect(mock.call('offlineRange', { path: 'Notes/document.md', offset: 0, length: 1 })).rejects.toThrow('range')
     mock.dispose()
   })
 

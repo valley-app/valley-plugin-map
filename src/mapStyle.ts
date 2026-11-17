@@ -40,23 +40,12 @@ function rasterStyle(tiles: string[], attribution: string, dimmed = false): Styl
   } as unknown as StyleSpecification
 }
 
-// A raster PMTiles archive served over valley-realm:// (Range-capable) for a
-// fully offline base map; the pmtiles protocol resolves the tiles.
-function offlineStyle(path: string): StyleSpecification {
-  return {
-    version: 8,
-    sources: { offline: { type: 'raster', url: `pmtiles://plugin-map-offline://archive/${encodeURIComponent(path)}`, tileSize: 256 } },
-    layers: [{ id: 'offline', type: 'raster', source: 'offline' }]
-  } as unknown as StyleSpecification
-}
-
 /** Resolve the base-map style for the chosen preset, theme and settings. */
 export function styleFor(
   style: MapStyleId,
   theme: ThemeMode,
   settings: MapSettings
 ): string | StyleSpecification {
-  if (settings.offlineBasemapPath) return offlineStyle(settings.offlineBasemapPath)
   const layer = mapLayer(style, settings)
   const account = parseAccountProviderChoice(effectiveBasemapProvider(settings))
   if (account) {
@@ -74,9 +63,4 @@ export function styleFor(
   }
   if (layer === 'satellite') return rasterStyle([ESRI_IMAGERY], '© Esri, Maxar, Earthstar Geographics', theme === 'dark')
   return theme === 'dark' ? CARTO_DARK : CARTO_LIGHT
-}
-
-/** Whether the resolved style needs the pmtiles protocol registered. */
-export function needsPmtiles(settings: MapSettings): boolean {
-  return Boolean(settings.offlineBasemapPath)
 }

@@ -73,7 +73,7 @@ export const MapColorModeField: FC = () => {
   const { SelectField } = api.ui.settings
   if (!store) return null
   return <Fact label={uiText('surface.colorMode')} control>
-    <SelectField className="map-select-fill" ariaLabel={uiText('surface.colorMode')} value={snap.colorMode} disabled={Boolean(store.settings().offlineBasemapPath)} options={[
+    <SelectField className="map-select-fill" ariaLabel={uiText('surface.colorMode')} value={snap.colorMode} options={[
       { value: 'system', label: uiText('style.system') },
       { value: 'light', label: uiText('style.light') },
       { value: 'dark', label: uiText('style.dark') }
@@ -87,7 +87,7 @@ export const MapLayerField: FC = () => {
   if (!store) return null
   const settings = store.settings()
   return <Fact label={uiText('surface.style')} control>
-    <SelectField className="map-select-fill" ariaLabel={uiText('surface.style')} value={mapLayer(snap.style, settings)} disabled={Boolean(settings.offlineBasemapPath)} options={mapLayers(settings).map((choice) => ({
+    <SelectField className="map-select-fill" ariaLabel={uiText('surface.style')} value={mapLayer(snap.style, settings)} options={mapLayers(settings).map((choice) => ({
       value: choice.id, label: uiText(choice.labelKey)
     }))} onChange={(value) => store.setStyle(mapLayer(value, settings))} />
   </Fact>

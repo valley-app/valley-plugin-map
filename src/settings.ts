@@ -89,9 +89,7 @@ export function resolveSettings(raw: Record<string, unknown>): MapSettings {
     openRouteServiceConnectionId,
     searchProvider: accountChoice(raw.searchProvider) ?? 'nominatim',
     routingProvider: accountChoice(raw.routingProvider) ?? 'osrm',
-    elevationProvider: raw.elevationProvider === 'none' ? 'none' : accountChoice(raw.elevationProvider) ?? 'open-elevation',
-    // The offline basemap setting is gone (17 Nov); a path saved earlier is not read.
-    offlineBasemapPath: ''
+    elevationProvider: raw.elevationProvider === 'none' ? 'none' : accountChoice(raw.elevationProvider) ?? 'open-elevation'
   }
 }
 

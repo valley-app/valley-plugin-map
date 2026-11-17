@@ -29,13 +29,6 @@ describe('mapFacts', () => {
     expect(value(facts, 'map.basemap')).toContain('unavailable')
   })
 
-  it('ignores an offline archive saved before the setting was removed', () => {
-    const facts = mapFacts(settings({ defaultStyle: 'satellite', offlineBasemapPath: 'maps/ch.pmtiles' }))
-    expect(value(facts, 'map.basemap')).not.toContain('maps/ch.pmtiles')
-    const services = mapServiceFacts(settings({ offlineBasemapPath: 'maps/ch.pmtiles' }), 'satellite')
-    expect(value(services, 'map.provider')).not.toBe('PMTiles')
-  })
-
   it('reports the current map provider when it differs from the preferred style', () => {
     const preferred = settings({ defaultStyle: 'satellite' })
     const services = mapServiceFacts(preferred, 'streets')

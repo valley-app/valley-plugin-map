@@ -39,8 +39,7 @@
   },
   "dependencies": {
     "@tmcw/togeojson": "7.1.2",
-    "maplibre-gl": "5.24.0",
-    "pmtiles": "4.4.1"
+    "maplibre-gl": "5.24.0"
   },
   "valley": {
     "build": "./build.mjs"

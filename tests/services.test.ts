@@ -83,13 +83,6 @@ describe('map provider layers', () => {
     }
   })
 
-  it('keeps offline tiles ahead of both online layers', () => {
-    const offline = { ...configured, offlineBasemapPath: 'maps/field.pmtiles' }
-    for (const { id: layer } of mapLayers(configured)) {
-      expect((styleFor(layer, 'dark', offline) as StyleSpecification).sources.offline).toMatchObject({ type: 'raster' })
-      expect((styleFor(layer, 'dark', offline) as StyleSpecification).sources.base).toBeUndefined()
-    }
-  })
 })
 
 describe('format', () => {
@@ -418,9 +411,8 @@ describe('settings resolver', () => {
     expect(s.elevationProvider).toBe('open-elevation')
   })
   it('always opens at the fixed default centre and coerces invalid enums', () => {
-    const s = resolveSettings({ defaultCenter: '7.44,11.95', offlineBasemapPath: 'maps/field.pmtiles', defaultZoom: 9, defaultStyle: 'bogus', mapboxEnabled: true, mapboxConnectionId: 'mapbox-1' })
+    const s = resolveSettings({ defaultCenter: '7.44,11.95', defaultZoom: 9, defaultStyle: 'bogus', mapboxEnabled: true, mapboxConnectionId: 'mapbox-1' })
     expect(s.defaultCenter).toEqual([8.5417, 47.3769])
-    expect(s.offlineBasemapPath).toBe('')
     expect(s.defaultZoom).toBe(9)
     expect(s.defaultStyle).toBe('streets')
     expect(s.mapboxEnabled).toBe(true)

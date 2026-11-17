@@ -244,7 +244,6 @@ export interface MapSettings {
   searchProvider: SearchProvider
   routingProvider: RoutingProvider
   elevationProvider: ElevationProvider
-  offlineBasemapPath: string
 }
 
 /** A geocoder search hit. */

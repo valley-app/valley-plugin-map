@@ -14,7 +14,6 @@ import {
   type SourceSpecification,
   type StyleSpecification
 } from 'maplibre-gl'
-import { Protocol, PMTiles } from 'pmtiles'
 import type {
   GeoPin,
   LiveLocation,
@@ -37,7 +36,7 @@ import {
   polygonFeature,
   type GeoJsonFeatureCollection
 } from './geojson'
-import { needsPmtiles, styleFor, type ThemeMode } from './mapStyle'
+import { styleFor, type ThemeMode } from './mapStyle'
 import type { SidebarOverlay } from './sidebarOverlay'
 import type { ValleyUnits } from '@valley/plugin-sdk/units'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
@@ -162,7 +161,6 @@ export class MapEngine {
   private visible: () => boolean = () => false
   private camera: { center: LngLat; zoom: number; bearing: number; pitch: number }
   private readonly protocolId = `map-${crypto.randomUUID()}`
-  private readonly pmtiles = new Protocol()
   private readonly protocols: string[] = []
   private sourcePins: NotePin[] = []
   private waypoints: Waypoint[] = []
@@ -253,34 +251,11 @@ export class MapEngine {
       if (type === 'string') return { data: new TextDecoder().decode(bytes) }
       return { data: bytes.buffer }
     }))
-    add(`${this.protocolId}-pmtiles`, (params, controller) => run(async () => {
-      const result = await this.pmtiles.tile({ ...params, url: params.url.replace(`${this.protocolId}-pmtiles://`, 'pmtiles://') }, controller)
-      // The TileJSON's tile templates come back on the plain pmtiles:// scheme, which nothing registers here: an
-      // unregistered scheme is fetched over the network and the plugin frame's CSP blocks it.
-      const data = result.data as Record<string, unknown> | undefined
-      if (!data || !Array.isArray(data.tiles)) return result
-      return { ...result, data: { ...data, tiles: data.tiles.map((tile: unknown) => typeof tile === 'string' ? tile.replace(/^pmtiles:\/\//, `${this.protocolId}-pmtiles://`) : tile) } }
-    }))
   }
 
   private style(): StyleSpecification {
-    if (needsPmtiles(this.opts.settings)) {
-      const path = this.opts.settings.offlineBasemapPath
-      const key = `plugin-map-offline://archive/${encodeURIComponent(path)}`
-      if (!this.pmtiles.get(key)) this.pmtiles.add(new PMTiles({
-        getKey: () => key,
-        getBytes: (offset, length) => this.owner.run(async () => {
-          if (this.destroyed || !this.visible()) throw new Error('The map is no longer active.')
-          const result = await mapServices(this.owner.api).offlineRange({ path, offset, length })
-          this.owner.assertActive()
-          if (this.destroyed) throw new Error('The map is no longer active.')
-          return { data: Uint8Array.from(atob(result.bodyBase64), character => character.charCodeAt(0)).buffer, etag: result.etag }
-        })
-      }))
-    }
     return JSON.parse(JSON.stringify(styleFor(this.opts.style, this.opts.theme, this.opts.settings))
-      .replaceAll('plugin-map://', `${this.protocolId}-tile://`)
-      .replaceAll('pmtiles://', `${this.protocolId}-pmtiles://`)) as StyleSpecification
+      .replaceAll('plugin-map://', `${this.protocolId}-tile://`)) as StyleSpecification
   }
 
   private mount(): void {

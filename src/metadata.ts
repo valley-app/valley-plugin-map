@@ -34,11 +34,9 @@ function providerLabel(provider: string): string {
   return provider
 }
 
-/** The base map actually in use — an offline archive overrides the chosen style,
- *  and `mapbox` silently falls back to the free tiles without a token. Mirrors
+/** The base map actually in use — `mapbox` silently falls back to the free tiles without a token. Mirrors
  *  the branches in `styleFor`; if that changes, this must change with it. */
 function baseMapLabel(settings: MapSettings): string {
-  if (settings.offlineBasemapPath) return uiText('auto.e42a8a8acf5b', { p0: settings.offlineBasemapPath })
   if (parseAccountProviderChoice(settings.basemapProvider)?.provider === 'mapbox' && effectiveBasemapProvider(settings) === 'free') {
     return uiText('auto.2a56879fc4af', { p0: STYLE_LABELS.streets })
   }
@@ -103,12 +101,11 @@ export function mapFacts(settings: MapSettings): PluginMetadataFact[] {
 
 export function mapServiceFacts(settings: MapSettings, style: MapStyleId = effectiveStyle(settings)): PluginMetadataFact[] {
   const account = parseAccountProviderChoice(effectiveBasemapProvider(settings))
-  const provider = settings.offlineBasemapPath ? 'PMTiles'
-    : account ? providerLabel(account.provider)
-      : style === 'satellite' ? 'Esri' : 'CARTO'
+  const provider = account ? providerLabel(account.provider)
+    : style === 'satellite' ? 'Esri' : 'CARTO'
   return [
     { id: 'map.provider', labelKey: 'surface.provider', label: 'Map provider', value: provider },
-    { id: 'map.data', labelKey: 'surface.mapData', label: 'Map data', value: settings.offlineBasemapPath ? uiText('surface.offlineData') : style === 'satellite' ? account ? `${providerLabel(account.provider)} Satellite` : 'Esri, Maxar, Earthstar Geographics' : 'OpenStreetMap' },
+    { id: 'map.data', labelKey: 'surface.mapData', label: 'Map data', value: style === 'satellite' ? account ? `${providerLabel(account.provider)} Satellite` : 'Esri, Maxar, Earthstar Geographics' : 'OpenStreetMap' },
     { id: 'map.engine', labelKey: 'surface.mapEngine', label: 'Map engine', value: 'MapLibre GL JS' },
     ...mapFacts(settings).filter((fact) => ['map.geocoding', 'map.routing', 'map.elevation'].includes(fact.id))
   ]
