@@ -6,8 +6,11 @@ export type MapSidebarBadge = {
   /** The `IR` and `36` of `IR 36`, so a host can set the category apart (the SBB look draws it italic). */
   category?: string; number?: string
 }
-/** A preformatted clock time; `expected` and `late` mark a delay the provider reported. */
-export type MapSidebarTime = { time: string; expected?: string; late?: boolean }
+/**
+ * A preformatted clock time; `expected` and `late` mark a delay the provider reported. `delay` is the
+ * provider's own short delay text (`ca. +8′`), drawn under the planned time where a host shows it.
+ */
+export type MapSidebarTime = { time: string; expected?: string; late?: boolean; delay?: string }
 /** One stop of the journey form. A `location` stop stands for the device's position. */
 export type MapSidebarRouteStop = { id: string; role: 'origin' | 'via' | 'destination'; label: string; value: string; placeholder?: string; location?: boolean }
 /** One connection card; `run(action)` opens it. A departure-board entry has no arrival. */
@@ -35,10 +38,8 @@ export type MapSidebarOccupancy = { first?: number; second?: number }
 export type MapSidebarLeg =
   | { kind: 'ride'; badge: MapSidebarBadge; direction: string; from: MapSidebarCall; to: MapSidebarCall; note?: string; action?: string; occupancy?: MapSidebarOccupancy }
   | { kind: 'walk'; text: string; duration?: string }
-/** Notes under a detail: a title, one line per item (`level` 1 to 3 draws that occupancy before the text) and a closing note. */
-export type MapSidebarLegend = { title: string; items: { level?: number; text: string }[]; note?: string }
 /** An opened connection: header plus its legs as a timeline. `back` returns to the list. */
-export type MapSidebarJourneyDetail = { title: string; departure: MapSidebarTime; arrival: MapSidebarTime; summary: string; legs: MapSidebarLeg[]; back: string; stops?: number[]; legend?: MapSidebarLegend }
+export type MapSidebarJourneyDetail = { title: string; departure: MapSidebarTime; arrival: MapSidebarTime; summary: string; legs: MapSidebarLeg[]; back: string; stops?: number[] }
 /**
  * One stop of a ride's run: where the traveller boards, alights, rides past (`pass`) or a stop after
  * alighting (`after`); a stop without a role lies outside the traveller's part too. Only one time at the
@@ -50,7 +51,7 @@ export type MapSidebarRideStop = { name: string; arrival?: MapSidebarTime; depar
  * back bar, a header (badge, the train `number` when it differs from the line, `direction`, the leg's
  * `occupancy`) and every stop the provider supplies. `back` returns to the connection.
  */
-export type MapSidebarRide = { title: string; back: string; badge: MapSidebarBadge; number?: string; direction?: string; occupancy?: MapSidebarOccupancy; stops: MapSidebarRideStop[]; legend?: MapSidebarLegend }
+export type MapSidebarRide = { title: string; back: string; badge: MapSidebarBadge; number?: string; direction?: string; occupancy?: MapSidebarOccupancy; stops: MapSidebarRideStop[] }
 export type MapSidebarTile = {
   id: string; label: string; detail?: string; action: string; icon?: 'location' | 'origin' | 'destination' | 'station'; active?: boolean; wide?: boolean
   /** A quieter first line above `label` (`Baden` above `Bahnhof West`). */
@@ -74,7 +75,10 @@ export type MapSidebarWhen = {
 }
 /** A WGS84 position as `[lng, lat]`. */
 export type MapSidebarPoint = [number, number]
-/** One line on the map: straight segments through `points` in order, with a stop mark at each of `stops`; `stopNames[i]` names `stops[i]`. */
+/**
+ * One line on the map: straight segments through `points` in order, with a stop mark at each of `stops`;
+ * `stopNames[i]` names `stops[i]`. A path of fewer than two points draws only its stops, unconnected.
+ */
 export type MapSidebarPath = { points: MapSidebarPoint[]; color?: string; stops?: MapSidebarPoint[]; stopNames?: string[] }
 /** A point the map marks: the start or end of a path, a change between two paths, or a single station. */
 export type MapSidebarMarker = { lng: number; lat: number; label?: string; kind?: 'origin' | 'destination' | 'station' | 'change' }

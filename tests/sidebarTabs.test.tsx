@@ -329,19 +329,18 @@ it('draws the provider row glyph for station suggestions and its own pin otherwi
   expect(glyph.querySelector('path')).toHaveAttribute('fill-rule', 'evenodd')
 })
 
-it('opens a ride leg as its run: back bar to the connection, every stop on one spine, roles, late times and only the legend supplied', async () => {
+it('opens a ride leg as its run: back bar to the connection, every stop on one spine, roles, SBB-style delays and no legend', async () => {
   setup()
   let notify = () => {}
   const leg = { kind: 'ride' as const, action: 'ride:0', occupancy: { second: 2 }, badge: { text: 'S12', kind: 'regional' as const }, direction: 'to Wil SG', from: { time: { time: '13:06' }, name: 'Brugg AG', platform: 'Pl. 5' }, to: { time: { time: '13:45' }, name: 'Zürich HB', platform: 'Pl. 43/44' } }
-  const legend = { title: 'Legend', items: [{ level: 2, text: 'High occupancy expected' }], note: 'All information without guarantee' }
   let snapshot: ReturnType<MapSidebarTab['getSnapshot']> = { fields: [], actions: [], rows: [], look: 'sbb', segments: [{ id: 'timetable', label: 'Timetable' }], segment: 'timetable',
-    journey: { title: 'Brugg AG → Zürich HB', departure: { time: '13:06' }, arrival: { time: '13:45' }, summary: 'Today, 39 min', back: 'back', legs: [leg], legend } }
+    journey: { title: 'Brugg AG → Zürich HB', departure: { time: '13:06' }, arrival: { time: '13:45' }, summary: 'Today, 39 min', back: 'back', legs: [leg] } }
   const extension: MapSidebarTab = { id: 'sbb', label: 'SBB', icon: { path: '', viewBox: '0 0 24 24' }, getSnapshot: () => snapshot, subscribe: listener => { notify = listener; return vi.fn() }, run: vi.fn(async () => {}) }
   const { container } = render(<ExtensionPanel extension={extension} />)
   const card = screen.getByRole('button', { name: /Brugg AG/ })
   expect(card).toHaveClass('map-leg', 'is-action')
   expect(card.querySelector('.map-occupancy.is-level-2')).not.toBeNull()
-  expect(container.querySelector('.map-legend')).toHaveTextContent('LegendHigh occupancy expectedAll information without guarantee')
+  expect(container.querySelector('.map-legend')).toBeNull()
   await act(async () => { fireEvent.click(card) })
   expect(extension.run).toHaveBeenLastCalledWith('ride:0', {})
   await act(async () => { fireEvent.keyDown(card, { key: 'Enter' }) })
@@ -349,11 +348,11 @@ it('opens a ride leg as its run: back bar to the connection, every stop on one s
   const scroller = container.parentElement!
   scroller.scrollTop = 240
   act(() => {
-    snapshot = { ...snapshot, ride: { title: 'S12 to Wil SG', back: 'rideBack', badge: { text: 'S12', kind: 'regional' }, number: '19251', direction: 'to Wil SG', occupancy: { second: 2 }, legend, stops: [
+    snapshot = { ...snapshot, ride: { title: 'S12 to Wil SG', back: 'rideBack', badge: { text: 'S12', kind: 'regional' }, number: '19251', direction: 'to Wil SG', occupancy: { second: 2 }, stops: [
       { name: 'Brugg AG', departure: { time: '13:06' }, platform: 'Pl. 5', role: 'board' },
-      { name: 'Turgi', arrival: { time: '13:10' }, departure: { time: '13:11', expected: '13:13', late: true }, platform: 'Pl. 3', role: 'pass' },
+      { name: 'Turgi', arrival: { time: '13:10' }, departure: { time: '13:11', expected: '13:13', late: true, delay: 'approx. +2′' }, platform: 'Pl. 3', role: 'pass' },
       { name: 'Zürich HB', arrival: { time: '13:45' }, platform: 'Pl. 43/44', role: 'alight' },
-      { name: 'Wil SG', arrival: { time: '14:42' }, role: 'after' }] } }
+      { name: 'Wil SG', arrival: { time: '14:42', expected: '14:44', late: true, delay: 'approx. +2′' }, platform: 'Pl. 5', role: 'after' }] } }
     notify()
   })
   // The run opens at its first stop.
@@ -363,10 +362,16 @@ it('opens a ride leg as its run: back bar to the connection, every stop on one s
   expect(container.querySelector('.map-journey-detail')).toBeNull()
   expect(container.querySelector('.map-ride-head')).toHaveTextContent('S1219251')
   const rows = [...container.querySelectorAll('.map-ride-stop')]
-  expect(rows.map(row => row.className.replace('map-ride-stop ', ''))).toEqual(['is-board', 'is-pass', 'is-alight', 'is-after'])
+  expect(rows.map(row => row.classList[1])).toEqual(['is-board', 'is-pass', 'is-alight', 'is-after'])
   expect([...rows[0].querySelectorAll('.map-ride-time')].map(node => [node.textContent, node.classList.contains('is-strong')])).toEqual([['13:06', true]])
-  expect([...rows[1].querySelectorAll('.map-ride-time')].map(node => [node.textContent, node.classList.contains('is-strong')])).toEqual([['13:10', false], ['13:13', true]])
-  expect(rows[1].querySelector('.map-ride-time.is-late')).toHaveAttribute('title', '13:11')
+  // The planned time keeps its colour; the delay sits under it in the late colour, and the dot turns late.
+  expect([...rows[1].querySelectorAll('.map-ride-time')].map(node => [node.textContent, node.classList.contains('is-strong')])).toEqual([['13:10', false], ['13:11', true]])
+  expect(rows[1].querySelector('.map-ride-delay')).toHaveTextContent('approx. +2′')
+  expect(rows[1]).toHaveClass('is-late', 'has-tail')
+  expect(rows[0]).not.toHaveClass('is-late')
+  expect(rows[3].querySelector('.map-ride-delay')).toHaveTextContent('approx. +2′')
+  expect(rows[3].querySelector('.map-ride-platform')).toHaveTextContent('Pl. 5')
+  expect(container.querySelector('.map-legend')).toBeNull()
   expect([...rows[3].querySelectorAll('.map-ride-time')].map(node => [node.textContent, node.classList.contains('is-strong')])).toEqual([['14:42', true]])
   expect(rows[2].querySelector('.map-ride-platform')).toHaveTextContent('Pl. 43/44')
   await act(async () => { fireEvent.keyDown(rows[1], { key: 'Escape' }) })
@@ -379,6 +384,8 @@ it('opens a ride leg as its run: back bar to the connection, every stop on one s
   expect(css).toMatch(/\.map-ride-title \{[^}]*text-overflow:ellipsis; white-space:nowrap/)
   expect(css).toMatch(/\.map-ride-time \{ white-space:nowrap; \}/)
   expect(css).toMatch(/\.map-ride-platform \{[^}]*white-space:nowrap/)
+  expect(css).toMatch(/\.map-ride-delay \{[^}]*white-space:nowrap/)
+  expect(css).not.toMatch(/map-legend/)
   dispose()
 })
 

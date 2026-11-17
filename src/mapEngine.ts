@@ -665,7 +665,7 @@ export class MapEngine {
     if (!overlay) return emptyCollection()
     const fallback = overlay.color ?? SIDEBAR_COLOR
     return { type: 'FeatureCollection', features: [
-      ...overlay.paths.map(path => lineFeature(path.points, { color: path.color ?? fallback })),
+      ...overlay.paths.flatMap(path => path.points.length >= 2 ? [lineFeature(path.points, { color: path.color ?? fallback })] : []),
       ...overlay.paths.flatMap(path => path.stops.map(({ point: [lng, lat], name }) => pointFeature(lng, lat, { kind: 'stop', color: path.color ?? fallback, ...(name ? { label: name } : {}) }))),
       ...overlay.markers.map(marker => pointFeature(marker.lng, marker.lat, { kind: marker.kind, color: fallback, ...(marker.label ? { label: marker.label } : {}) }))
     ] }

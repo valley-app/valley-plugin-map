@@ -1,6 +1,6 @@
 import { React, api } from './runtime'
 import type { FC, ReactElement } from 'react'
-import type { MapSidebarBadge, MapSidebarJourney, MapSidebarJourneyDetail, MapSidebarLeg, MapSidebarLegend, MapSidebarOccupancy, MapSidebarRide, MapSidebarRideStop, MapSidebarRouteStop, MapSidebarSnapshot, MapSidebarTab, MapSidebarTile, MapSidebarTime, MapSidebarWhen } from './sidebarContract'
+import type { MapSidebarBadge, MapSidebarJourney, MapSidebarJourneyDetail, MapSidebarLeg, MapSidebarOccupancy, MapSidebarRide, MapSidebarRideStop, MapSidebarRouteStop, MapSidebarSnapshot, MapSidebarTab, MapSidebarTile, MapSidebarTime, MapSidebarWhen } from './sidebarContract'
 import { uiText } from './localization'
 import { ChevronLeft, Crosshair, MapPin, SwapVertical, Walk } from './icons'
 
@@ -36,11 +36,11 @@ const Badge: FC<{ badge: MapSidebarBadge; sbb?: boolean }> = ({ badge, sbb }) =>
   </span>
 }
 
-/** A clock time, with the provider's expected time beside it when the trip runs late. */
+/** A clock time, with the provider's delay text (else its expected time) beside or under it when the trip runs late. */
 const Time: FC<{ time: MapSidebarTime; strong?: boolean }> = ({ time, strong }) => (
   <span className={`map-journey-time${strong ? ' is-strong' : ''}`}>
     {time.time}
-    {time.late && time.expected && <span className="map-journey-late">{time.expected}</span>}
+    {time.late && (time.delay ?? time.expected) && <span className={`map-journey-late${time.delay ? ' is-delay' : ''}`}>{time.delay ?? time.expected}</span>}
   </span>
 )
 
@@ -71,16 +71,6 @@ const Occupancies: FC<{ occupancy: MapSidebarOccupancy }> = ({ occupancy }) => (
     {occupancy.first && <Occupancy level={occupancy.first} label="1." />}
     {occupancy.second && <Occupancy level={occupancy.second} label="2." />}
   </span>
-)
-
-const Legend: FC<{ legend: MapSidebarLegend }> = ({ legend }) => (
-  <div className="map-legend">
-    <span className="map-legend-title">{legend.title}</span>
-    {legend.items.map((item, index) => (
-      <span key={index} className="map-legend-item">{item.level ? <Occupancy level={item.level} label="" /> : null}<span>{item.text}</span></span>
-    ))}
-    {legend.note && <span className="map-legend-note">{legend.note}</span>}
-  </div>
 )
 
 const JourneyCard: FC<{ journey: MapSidebarJourney; run: (action: string) => void; disabled: boolean; sbb: boolean }> = ({ journey, run, disabled, sbb }) => {
@@ -149,21 +139,24 @@ const JourneyDetail: FC<{ detail: MapSidebarJourneyDetail; sbb: boolean; run: (a
       <span className="map-journey-meta"><span>{detail.summary}</span></span>
     </div>
     <div className="map-legs">{detail.legs.map((leg, index) => <Leg key={index} leg={leg} sbb={sbb} run={run} />)}</div>
-    {detail.legend && <Legend legend={detail.legend} />}
   </div>
 )
 
-/** A ride stop's clock: the expected time alone, in the late colour, when it differs from the plan. */
+/** A ride stop's planned clock in its normal colour, and under it, in the late colour, the provider's delay text (else the expected time). */
 const RideTime: FC<{ time: MapSidebarTime; strong?: boolean }> = ({ time, strong }) => {
-  const late = time.late && time.expected
-  return <span className={`map-ride-time${strong ? ' is-strong' : ''}${late ? ' is-late' : ''}`} title={late ? time.time : undefined}>{late ? time.expected : time.time}</span>
+  const late = time.late ? time.delay ?? time.expected : undefined
+  return <>
+    <span className={`map-ride-time${strong ? ' is-strong' : ''}`}>{time.time}</span>
+    {late && <span className={`map-ride-delay${strong ? ' is-strong' : ''}`}>{late}</span>}
+  </>
 }
 
 /**
  * A ride's run: header card, then every supplied stop on one spine. Arrival above departure (the
- * departure bold; a lone time at either end is bold), name truncating, platform at the right. Boarding
- * and alighting are filled dots in bold, stops ridden past small rings, stops outside the traveller's
- * part dimmed.
+ * departure bold; a lone time at either end is bold), each late time with its delay line under it,
+ * name truncating, platform at the right, all aligned with the main (departure, else arrival) time.
+ * Boarding and alighting are filled dots in bold, stops ridden past small rings, a late stop's dot in
+ * the late colour, stops outside the traveller's part dimmed.
  */
 const RideInfo: FC<{ ride: MapSidebarRide; sbb: boolean }> = ({ ride, sbb }) => (
   <div className="map-ride">
@@ -172,8 +165,13 @@ const RideInfo: FC<{ ride: MapSidebarRide; sbb: boolean }> = ({ ride, sbb }) => 
       {ride.direction && <span className="map-leg-direction">{ride.direction}</span>}
     </div>
     <ol className="map-ride-stops">
-      {ride.stops.map((stop: MapSidebarRideStop, index) => (
-        <li key={index} className={`map-ride-stop is-${stop.role ?? 'outside'}`}>
+      {ride.stops.map((stop: MapSidebarRideStop, index) => {
+        const main = stop.departure ?? stop.arrival
+        // A delay line under the main time: name, platform and dot stay on the main time's line.
+        const tail = Boolean(main?.late && (main.delay ?? main.expected))
+        const late = Boolean(stop.arrival?.late || stop.departure?.late)
+        return (
+        <li key={index} className={`map-ride-stop is-${stop.role ?? 'outside'}${late ? ' is-late' : ''}${tail ? ' has-tail' : ''}`}>
           <span className="map-ride-times">
             {stop.arrival && <RideTime time={stop.arrival} strong={!stop.departure} />}
             {stop.departure && <RideTime time={stop.departure} strong />}
@@ -182,9 +180,9 @@ const RideInfo: FC<{ ride: MapSidebarRide; sbb: boolean }> = ({ ride, sbb }) => 
           <span className="map-ride-name"><span className="map-ride-title">{stop.name}</span>{stop.occupancy && <Occupancies occupancy={stop.occupancy} />}</span>
           <span className="map-ride-platform">{stop.platform}</span>
         </li>
-      ))}
+        )
+      })}
     </ol>
-    {ride.legend && <Legend legend={ride.legend} />}
   </div>
 )
 

@@ -1302,7 +1302,7 @@ describe('MapStore — sidebar tab overlay', () => {
     // Before a map view is open nothing is drawn; the map fits the overlay once it opens.
     store.setSidebarOverlay(journey('path:a', [[8.405, 47.406], [8.54, 47.378]]))
     store.attachMap(rec.engine)
-    expect(rec.fits).toEqual([[[8.405, 47.406], [8.54, 47.378], [8.405, 47.406]]])
+    expect(rec.fits).toEqual([[[8.405, 47.406], [8.54, 47.378], [8.49, 47.39], [8.405, 47.406]]])
     const raw = journey('path:a', [[8.405, 47.406], [Number.NaN, 47], [200, 47], [8.54, 47.378], [8.6, 47.4]])
     store.setSidebarOverlay(raw)
     expect(rec.fits).toHaveLength(1)
@@ -1326,6 +1326,9 @@ describe('MapStore — sidebar tab overlay', () => {
     const named = normalizeSidebarOverlay({ fit: 'x', attribution: ' © OpenStreetMap contributors ', paths: [{ points: [[8, 47], [8.1, 47.1]], stops: [[8.05, 47.05], ['x', 1], [8.07, 47.07]], stopNames: ['Baden', 'Gone', ' '] }] })!
     expect(named.paths[0].stops).toEqual([{ point: [8.05, 47.05], name: 'Baden' }, { point: [8.07, 47.07] }])
     expect(named.attribution).toBe('© OpenStreetMap contributors')
+    // A path without two points draws no line and still marks its stops, unconnected; an empty one is dropped.
+    const dots = normalizeSidebarOverlay({ fit: 'y', paths: [{ points: [], stops: [[8.05, 47.05], [8.3, 47.2]] }, { points: [[8, 47]] }] })!
+    expect(dots.paths).toEqual([{ points: [], stops: [{ point: [8.05, 47.05] }, { point: [8.3, 47.2] }] }])
   })
 
   it('draws no lettered marker for a planner that holds only the origin it took from the live position', () => {

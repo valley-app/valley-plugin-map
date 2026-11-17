@@ -34,8 +34,9 @@ export function normalizeSidebarOverlay(raw: unknown): SidebarOverlay | null {
   const overlayColor = color(value.color)
   const paths = (Array.isArray(value.paths) ? value.paths.slice(0, MAX_PATHS) : []).flatMap(entry => {
     const path = record(entry)
-    const line = points(path?.points, MAX_POINTS)
-    if (!path || line.length < 2) return []
+    if (!path) return []
+    // Fewer than two points draw no line; such a path still marks its stops, unconnected.
+    const drawn = points(path.points, MAX_POINTS), line = drawn.length >= 2 ? drawn : []
     const pathColor = color(path.color)
     const names = Array.isArray(path.stopNames) ? path.stopNames : []
     const stops = (Array.isArray(path.stops) ? path.stops.slice(0, MAX_STOPS) : []).flatMap((entry, index) => {
@@ -43,6 +44,7 @@ export function normalizeSidebarOverlay(raw: unknown): SidebarOverlay | null {
       const name = label(names[index])
       return [{ point: [entry[0], entry[1] as number] as LngLat, ...(name ? { name } : {}) }]
     })
+    if (!line.length && !stops.length) return []
     return [{ points: line, stops, ...(pathColor ? { color: pathColor } : {}) }]
   })
   const markers = (Array.isArray(value.markers) ? value.markers.slice(0, MAX_MARKERS) : []).flatMap(entry => {
@@ -60,5 +62,5 @@ export function normalizeSidebarOverlay(raw: unknown): SidebarOverlay | null {
 
 /** Every point an overlay shows, for fitting the camera. */
 export function overlayPoints(overlay: SidebarOverlay): LngLat[] {
-  return [...overlay.paths.flatMap(path => path.points), ...overlay.markers.map((marker): LngLat => [marker.lng, marker.lat])]
+  return [...overlay.paths.flatMap(path => [...path.points, ...path.stops.map(stop => stop.point)]), ...overlay.markers.map((marker): LngLat => [marker.lng, marker.lat])]
 }

@@ -184,12 +184,6 @@ const CSS = `
 .map-leg.is-action:hover { background:var(--hover-bg); }
 .map-leg.is-action:focus-visible { outline:2px solid var(--accent-color, currentColor); outline-offset:-2px; }
 .map-leg .map-journey-head .map-occupancies, .map-ride-head .map-journey-head .map-occupancies { margin-left:auto; }
-.map-legend { display:flex; flex-direction:column; gap:6px; padding:8px 2px 4px; font-size:0.75rem; color:var(--text-secondary); }
-.map-legend-title { margin-bottom:2px; font-size:0.8125rem; color:var(--text-color); }
-.map-legend-item { display:flex; align-items:center; gap:8px; }
-.map-legend-item .map-occupancy { flex:0 0 auto; }
-.map-occupancy > span:empty { display:none; }
-.map-legend-note { margin-top:4px; }
 /* A ride's run: header card, then the stops on one spine (time | spine | name | platform), one line per stop. */
 .map-ride { display:flex; flex-direction:column; gap:8px; }
 .map-ride-head { display:flex; flex-direction:column; gap:4px; min-width:0; padding:10px 12px; border:1px solid var(--border-light); border-radius:8px; background:var(--container-color-alt); font-size:0.75rem; color:var(--text-secondary); }
@@ -199,16 +193,22 @@ const CSS = `
 .map-ride-times { display:flex; flex-direction:column; justify-content:flex-end; padding-top:12px; font-size:0.75rem; line-height:18px; font-variant-numeric:tabular-nums; color:var(--text-secondary); }
 .map-ride-time { white-space:nowrap; }
 .map-ride-time.is-strong { font-weight:700; color:var(--text-color); }
-.map-ride-time.is-late { color:var(--tint-red-text, #b91c1c); }
+.map-ride-delay { font-size:0.6875rem; line-height:16px; white-space:nowrap; color:var(--tint-red-text, #b91c1c); }
+.map-ride-delay.is-strong { font-weight:700; }
 .map-ride-spine { position:relative; align-self:stretch; }
 .map-ride-spine::before, .map-ride-spine::after { content:''; position:absolute; left:50%; width:2px; background:var(--ride-line); transform:translateX(-50%); }
-.map-ride-spine::before { top:0; bottom:9px; }
-.map-ride-spine::after { bottom:0; height:9px; }
+.map-ride-stop { --ride-dot:9px; }
+.map-ride-stop.has-tail { --ride-dot:25px; }
+.map-ride-spine::before { top:0; bottom:var(--ride-dot); }
+.map-ride-spine::after { bottom:0; height:var(--ride-dot); }
+.map-ride-stop.has-tail :is(.map-ride-name, .map-ride-platform) { padding-bottom:16px; }
 .map-ride-stop:first-child .map-ride-spine::before, .map-ride-stop:last-child .map-ride-spine::after { display:none; }
 .map-ride-stop.is-after .map-ride-spine::before, .map-ride-stop.is-after .map-ride-spine::after, .map-ride-stop.is-outside .map-ride-spine::before, .map-ride-stop.is-outside .map-ride-spine::after,
 .map-ride-stop.is-outside + .map-ride-stop .map-ride-spine::before, .map-ride-stop:has(+ .is-after) .map-ride-spine::after, .map-ride-stop:has(+ .is-outside) .map-ride-spine::after { background:var(--ride-dim); }
-.map-ride-dot { position:absolute; z-index:1; left:50%; bottom:9px; width:7px; height:7px; box-sizing:border-box; border:1.5px solid var(--ride-line); border-radius:50%; background:var(--container-color-alt); transform:translate(-50%, 50%); }
+.map-ride-dot { position:absolute; z-index:1; left:50%; bottom:var(--ride-dot); width:7px; height:7px; box-sizing:border-box; border:1.5px solid var(--ride-line); border-radius:50%; background:var(--container-color-alt); transform:translate(-50%, 50%); }
 .map-ride-stop.is-board .map-ride-dot, .map-ride-stop.is-alight .map-ride-dot { width:11px; height:11px; border:0; background:var(--text-color); }
+.map-ride-stop.is-late:not(.is-after, .is-outside) .map-ride-dot { border-color:var(--tint-red-text, #b91c1c); }
+.map-ride-stop.is-late:is(.is-board, .is-alight) .map-ride-dot { background:var(--tint-red-text, #b91c1c); }
 .map-ride-name { display:flex; align-items:center; gap:8px; min-width:0; font-size:0.8125rem; line-height:18px; color:var(--text-color); }
 .map-ride-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .map-ride-name .map-occupancies { flex-shrink:0; }
@@ -314,15 +314,15 @@ const CSS = `
 .is-sbb .map-leg.is-walk .map-leg-body { color:var(--sbb-text); font-size:0.8125rem; }
 .is-sbb .map-leg.is-action:hover { background:var(--sbb-hover); }
 .is-sbb .map-occupancy.is-level-3 svg.is-on { fill:var(--sbb-late); }
-.is-sbb .map-legend { color:var(--sbb-text); }
-.is-sbb .map-legend-title { color:var(--sbb-text); }
 .is-sbb .map-ride-head, .is-sbb .map-ride-stops { border:0; border-radius:10px; background:var(--sbb-card); box-shadow:var(--sbb-shadow); }
 .is-sbb .map-ride-head { color:var(--sbb-text); font-size:0.8125rem; }
 .is-sbb .map-ride-stops { --ride-line:var(--sbb-text); }
 .is-sbb .map-ride-dot { background:var(--sbb-card); }
 .is-sbb .map-ride-number, .is-sbb .map-ride-name, .is-sbb .map-ride-platform, .is-sbb .map-ride-times, .is-sbb .map-ride-time.is-strong { color:var(--sbb-text); }
 .is-sbb .map-ride-stop.is-board .map-ride-dot, .is-sbb .map-ride-stop.is-alight .map-ride-dot { background:var(--sbb-text); }
-.is-sbb .map-ride-time.is-late { color:var(--sbb-late); }
+.is-sbb .map-ride-delay { color:var(--sbb-late); }
+.is-sbb .map-ride-stop.is-late:not(.is-after, .is-outside) .map-ride-dot { border-color:var(--sbb-late); }
+.is-sbb .map-ride-stop.is-late:is(.is-board, .is-alight) .map-ride-dot { background:var(--sbb-late); }
 .is-sbb .map-journey-error { color:var(--sbb-late); background:var(--sbb-card); }
 .is-sbb .map-journey-suggestion { background:var(--sbb-card); color:var(--sbb-text); }
 .is-sbb .map-journey-suggestion .map-row-icon { color:var(--sbb-text); }
@@ -864,14 +864,17 @@ const CSS = `
 .map-usage-value { display:flex; flex-direction:column; gap:4px; overflow-wrap:anywhere; }
 .map-usage-detail { color:var(--text-secondary); font-size:var(--smaller-font-size); }
 .map-usage-note { margin-top:var(--space-3); }
-/* Pin sources: one flat list on fixed columns, rows split by the shared hairline. */
-.map-sources-toolbar { display:flex; align-items:center; gap:var(--space-2); margin:0 0 var(--space-2); min-width:0; }
+/* Pin sources: one flat list on fixed columns. Every line runs edge to edge like
+   the header bar's (the frame insets content 10px); the content keeps its inset. */
+.map-sources-toolbar { display:flex; align-items:center; gap:var(--space-2); min-width:0; }
 .map-sources-toolbar .map-sources-search { flex:1 1 auto; min-width:0; margin:0; }
 .map-sources-search input { width:100%; min-width:0; border:0; background:none; outline:0; box-shadow:none; color:inherit; }
 .map-sources-search input:focus, .map-sources-search input:focus-visible,
 .map-pin-icon-browser .search-field input:focus, .map-pin-icon-browser .search-field input:focus-visible {
   border:0; outline:none; box-shadow:none; background:none;
 }
+.map-sources-fold { flex:0 0 auto; }
+.map-sources-fold svg { width:var(--shell-glyph-medium, 16px); height:var(--shell-glyph-medium, 16px); }
 .map-add-source-row { display:flex; align-items:center; flex:0 0 auto; padding:2px; margin-right:-2px; }
 .map-add-source { display:inline-flex; align-items:center; justify-content:center; gap:6px; width:auto; margin:0; min-height:28px; padding:5px 10px; border:1px solid var(--border-medium); border-radius:var(--radius); background:var(--hover-bg); color:var(--text-color); font:inherit; }
 .map-add-source svg { display:block; width:14px; height:14px; flex-shrink:0; padding:0; background:none; }
@@ -881,12 +884,17 @@ const CSS = `
 .map-source-sortable { position:relative; min-width:0; }
 /* The reorder announcement: the SDK 8.4 frame styles lack the shared visually-hidden rule. */
 .map-source-list > .settings-visually-hidden { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
-.map-source-sortable[data-drop-position]::before { content:''; position:absolute; z-index:2; left:0; right:0; height:var(--drop-knob, 6px); margin:0; background:var(--drop-indicator-fill, var(--accent-color)); pointer-events:none; }
+.map-source-sortable[data-drop-position]::before { content:''; position:absolute; z-index:2; left:-10px; right:-10px; height:var(--drop-knob, 6px); margin:0; background:var(--drop-indicator-fill, var(--accent-color)); pointer-events:none; }
 .map-source-list .map-source-sortable[data-drop-position='before']::before { top:0; transform:translateY(-50%); }
 .map-source-list .map-source-sortable[data-drop-position='after']::before { bottom:0; transform:translateY(50%); }
-.map-source-row { min-width:0; border-bottom:1px solid var(--border-light); }
-.map-source-head { display:grid; grid-template-columns:22px 22px 24px minmax(0, 1fr) auto auto; align-items:center; column-gap:8px;
-  min-height:44px; padding:4px 0; box-sizing:border-box; min-width:0; }
+.map-source-row { min-width:0; margin:0 -10px; padding:0 10px; border-bottom:1px solid var(--border-light); }
+/* The line under the toolbar sits directly on the first source. No pseudo-element here:
+   host widgets copy their ancestors' classes into their own shadow tree with this
+   stylesheet, so a generated box on an ancestor class pushes every widget aside. */
+.map-source-list > .map-source-sortable:first-of-type > .map-source-row { border-top:1px solid var(--border-light); }
+/* The head never changes when the source opens: fixed height, same content. */
+.map-source-head { display:grid; grid-template-columns:22px 24px minmax(0, 1fr) auto 22px auto; align-items:center; column-gap:8px;
+  height:44px; box-sizing:border-box; min-width:0; cursor:pointer; }
 .map-source-grip, .map-source-disclosure { display:grid; place-items:center; width:22px; height:28px; border:0; border-radius:var(--radius-sm); padding:0; margin:0; background:none; color:var(--text-secondary); cursor:pointer; }
 .map-source-grip { cursor:grab; color:var(--text-tertiary); }
 .map-source-grip:active { cursor:grabbing; }
@@ -897,8 +905,6 @@ const CSS = `
   background:var(--swatch-fill); border:2px solid var(--swatch-ring); color:var(--swatch-on); box-shadow:0 0 0 1px var(--border-light); }
 .map-source-disc svg { width:12px; height:12px; }
 .map-source-meta { display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0; }
-button.map-source-meta { border:0; padding:0; margin:0; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer; }
-.map-source-meta > .map-source-title { width:100%; min-width:0; justify-content:flex-start; }
 .map-source-name { font-weight:600; color:var(--text-color); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .map-source-name.is-placeholder { color:var(--text-secondary); }
 .map-source-sub { font-size:var(--smaller-font-size); color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -907,16 +913,20 @@ button.map-source-meta { border:0; padding:0; margin:0; background:none; color:i
 .map-source-row.is-off .map-source-name, .map-source-row.is-off .map-source-sub, .map-source-row.is-off .map-source-count { color:var(--text-tertiary, var(--text-secondary)); }
 .map-source-row.is-off .map-source-disc { opacity:.45; }
 /* What the source currently finds — a rule matching nothing must not stay silent. */
-.map-source-stats { margin:0; font-size:var(--smaller-font-size); font-variant-numeric:tabular-nums; color:var(--text-secondary);
+.map-source-stats { display:block; margin:0; font-size:var(--smaller-font-size); font-variant-numeric:tabular-nums; color:var(--text-secondary);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .map-source-stats.warn { color:var(--tint-red-text, #b91c1c); }
-.map-source-editor { min-width:0; padding:0 0 var(--space-3) calc(22px + 22px + 24px + 3 * 8px); }
-.map-source-group { margin-top:var(--space-3); min-width:0; }
-.map-source-group > .settings-label { margin:0 0 var(--space-1); }
-.map-source-group:last-child > .settings-path-row:last-child { border-bottom:0; }
-.map-source-match { flex-wrap:nowrap; }
-.map-source-match > [data-plugin-widget], .map-source-match > .settings-path-input { flex:1 1 0; min-width:0; }
-.settings-row-control.map-source-look { justify-content:flex-start; }
+/* The open source: a label column right beside its controls, lines only between groups. */
+.map-source-editor { min-width:0; padding:2px 0 var(--space-3) calc(22px + 24px + 2 * 8px); }
+.map-source-form { display:grid; grid-template-columns:132px minmax(0, 440px); column-gap:var(--space-3); row-gap:6px; align-items:center; min-width:0; }
+.map-source-form-label { min-width:0; overflow-wrap:anywhere; }
+.settings-row-control.map-source-form-control { width:100%; min-width:0; min-height:32px; justify-content:flex-start; flex-wrap:nowrap; }
+.map-source-form-control > [data-plugin-widget]:not([data-plugin-widget-inline]) { flex:1 1 0; min-width:0; }
+.map-source-form-note { min-width:0; margin-top:-2px; font-size:var(--smaller-font-size); line-height:1.4; color:var(--text-secondary); }
+.map-source-group { min-width:0; margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border-light); }
+.map-source-group-title { margin:0 0 6px; font-size:var(--smaller-font-size); font-weight:600; color:var(--text-secondary); }
+.map-source-footer { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); }
+.map-source-use { display:inline-flex; align-items:center; gap:var(--space-2); min-width:0; }
 .map-source-match-eq { flex:0 0 auto; color:var(--text-secondary); }
 .map-source-icon-btn { display:grid; place-items:center; flex:0 0 auto; width:28px; height:28px; box-sizing:border-box; padding:0;
   border:1px solid var(--border-medium); border-radius:50%; background:none; color:var(--text-color); cursor:pointer; }
@@ -943,13 +953,12 @@ button.map-source-meta { border:0; padding:0; margin:0; background:none; color:i
    typography. Same three rules on the Calendar's note-date row. */
 .map-source-toggle { display:inline-flex; align-items:center; justify-content:center; gap:5px; }
 .map-source-toggle svg { display:block; flex:0 0 auto; width:14px; height:14px; vertical-align:middle; }
-.map-icon-opt:focus-visible, .map-source-icon-btn:focus-visible, .map-source-disclosure:focus-visible, button.map-source-meta:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+.map-icon-opt:focus-visible, .map-source-icon-btn:focus-visible, .map-source-disclosure:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
 @container (max-width:480px) {
   .map-source-editor { padding-left:0; }
-}
-/* A narrow frame stacks settings rows (SDK breakpoint): the match pair then spans the row like the other fields. */
-@media (max-width:640px) {
-  .settings-row-control.map-source-match { width:100%; }
+  .map-source-form { grid-template-columns:minmax(0, 1fr); row-gap:4px; }
+  .map-source-form-label:empty { display:none; }
+  .map-source-form-label + .map-source-form-control { margin-bottom:4px; }
 }
 .map-sources-header { display:flex; align-items:center; gap:8px; flex:0 0 var(--app-bar-height, 38px); height:var(--app-bar-height, 38px); min-height:var(--app-bar-height, 38px); box-sizing:border-box; padding:0 10px; border-bottom:1px solid var(--border-light); font-size:var(--small-font-size); font-weight:600; background:var(--container-color); }
 .map-sources-header > span:first-child { flex:1; min-width:0; }
