@@ -346,6 +346,8 @@ it('opens a ride leg as its run: back bar to the connection, every stop on one s
   expect(extension.run).toHaveBeenLastCalledWith('ride:0', {})
   await act(async () => { fireEvent.keyDown(card, { key: 'Enter' }) })
   expect(extension.run).toHaveBeenLastCalledWith('ride:0', {})
+  const scroller = container.parentElement!
+  scroller.scrollTop = 240
   act(() => {
     snapshot = { ...snapshot, ride: { title: 'S12 to Wil SG', back: 'rideBack', badge: { text: 'S12', kind: 'regional' }, number: '19251', direction: 'to Wil SG', occupancy: { second: 2 }, legend, stops: [
       { name: 'Brugg AG', departure: { time: '13:06' }, platform: 'Pl. 5', role: 'board' },
@@ -354,6 +356,8 @@ it('opens a ride leg as its run: back bar to the connection, every stop on one s
       { name: 'Wil SG', arrival: { time: '14:42' }, role: 'after' }] } }
     notify()
   })
+  // The run opens at its first stop.
+  expect(scroller.scrollTop).toBe(0)
   const back = screen.getByRole('button', { name: 'Back to the connection' })
   expect(back.closest('.map-journey-backbar')).toHaveTextContent('S12 to Wil SG')
   expect(container.querySelector('.map-journey-detail')).toBeNull()

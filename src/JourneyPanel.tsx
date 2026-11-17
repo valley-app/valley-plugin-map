@@ -431,11 +431,21 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
   const when = snapshot.route?.when
   const journeys = snapshot.journeys ?? []
   // A ride's run sits over the opened connection: its back bar returns to the connection, the connection's to the list.
+  // A ride's run opens at its first stop: scroll the panel's scroller back to the top.
+  const root = React.useRef<HTMLDivElement>(null)
+  const rideKey = snapshot.ride ? `${snapshot.ride.title}|${snapshot.ride.stops[0]?.name ?? ''}` : ''
+  React.useEffect(() => {
+    if (!rideKey) return
+    for (let node = root.current?.parentElement; node; node = node.parentElement) {
+      if (node.scrollTop > 0) { node.scrollTop = 0; break }
+    }
+    if (root.current) root.current.scrollTop = 0
+  }, [rideKey])
   const back = snapshot.ride ? { action: snapshot.ride.back, title: snapshot.ride.title, label: uiText('journey.backToConnection') }
     : snapshot.journey ? { action: snapshot.journey.back, title: snapshot.journey.title, label: uiText('journey.back') } : undefined
 
   return (
-    <div className={`map-journey${sbb ? ' is-sbb' : ''}`} aria-busy={busy}
+    <div ref={root} className={`map-journey${sbb ? ' is-sbb' : ''}`} aria-busy={busy}
       onKeyDown={(event) => { if (event.key === 'Escape' && back) { event.stopPropagation(); act(back.action) } }}>
       {dragged && order.drag && <div className={`map-route-chip is-${dragged.role}`} style={{ left: order.drag.x - 14, top: order.drag.y - 15 }} aria-hidden="true">
         {ring(dragged)}<span>{dragged.value}</span>
