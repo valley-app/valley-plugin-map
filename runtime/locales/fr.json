@@ -493,6 +493,8 @@
   "pins.row.hint": "Cliquez pour voir ses notes · double-cliquez pour les voir sur la carte · glissez ou Alt+↑/↓ pour réordonner",
   "journey.platformChanged": "Changement de voie",
   "journey.back": "Retour aux liaisons",
+  "journey.backToConnection": "Retour à la liaison",
+  "journey.rideInfo": "Afficher tous les arrêts de ce trajet",
   "journey.swap": "Inverser départ et arrivée",
   "journey.soon": "Bientôt",
   "places.folders.edit": "Modifier le dossier",

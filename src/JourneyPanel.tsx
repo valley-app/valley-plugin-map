@@ -1,12 +1,12 @@
 import { React, api } from './runtime'
 import type { FC, ReactElement } from 'react'
-import type { MapSidebarBadge, MapSidebarJourney, MapSidebarJourneyDetail, MapSidebarLeg, MapSidebarRouteStop, MapSidebarSnapshot, MapSidebarTab, MapSidebarTile, MapSidebarTime, MapSidebarWhen } from './sidebarContract'
+import type { MapSidebarBadge, MapSidebarJourney, MapSidebarJourneyDetail, MapSidebarLeg, MapSidebarLegend, MapSidebarOccupancy, MapSidebarRide, MapSidebarRideStop, MapSidebarRouteStop, MapSidebarSnapshot, MapSidebarTab, MapSidebarTile, MapSidebarTime, MapSidebarWhen } from './sidebarContract'
 import { uiText } from './localization'
 import { ChevronLeft, Crosshair, MapPin, SwapVertical, Walk } from './icons'
 
 /** Does a sidebar tab use the journey-planner parts of the contract? */
 export function isPlannerSnapshot(snapshot: MapSidebarSnapshot): boolean {
-  return Boolean(snapshot.segments || snapshot.route || snapshot.journeys || snapshot.journey || snapshot.tiles)
+  return Boolean(snapshot.segments || snapshot.route || snapshot.journeys || snapshot.journey || snapshot.ride || snapshot.tiles)
 }
 
 /** The product pictograms of the SBB look: a white glyph on the blue square. */
@@ -57,12 +57,30 @@ const Track: FC<{ changes: number; stops?: number[] }> = ({ changes, stops }) =>
 
 /** Three figures, as many filled as the forecast level. */
 const Occupancy: FC<{ level: number; label: string }> = ({ level, label }) => (
-  <span className="map-occupancy" title={`${label} ${level}/3`}>
+  <span className={`map-occupancy is-level-${level}`} title={`${label} ${level}/3`.trim()}>
     <span>{label}</span>
     {[1, 2, 3].map(index => (
       <svg key={index} viewBox="0 0 6 12" className={index <= level ? 'is-on' : ''} aria-hidden="true"><circle cx="3" cy="2" r="1.6" /><path d="M1 5h4v4H4v3H2V9H1Z" /></svg>
     ))}
   </span>
+)
+
+/** First and second class side by side, only the classes supplied. */
+const Occupancies: FC<{ occupancy: MapSidebarOccupancy }> = ({ occupancy }) => (
+  <span className="map-occupancies">
+    {occupancy.first && <Occupancy level={occupancy.first} label="1." />}
+    {occupancy.second && <Occupancy level={occupancy.second} label="2." />}
+  </span>
+)
+
+const Legend: FC<{ legend: MapSidebarLegend }> = ({ legend }) => (
+  <div className="map-legend">
+    <span className="map-legend-title">{legend.title}</span>
+    {legend.items.map((item, index) => (
+      <span key={index} className="map-legend-item">{item.level ? <Occupancy level={item.level} label="" /> : null}<span>{item.text}</span></span>
+    ))}
+    {legend.note && <span className="map-legend-note">{legend.note}</span>}
+  </div>
 )
 
 const JourneyCard: FC<{ journey: MapSidebarJourney; run: (action: string) => void; disabled: boolean; sbb: boolean }> = ({ journey, run, disabled, sbb }) => {
@@ -97,9 +115,14 @@ const JourneyCard: FC<{ journey: MapSidebarJourney; run: (action: string) => voi
     : <div className={`map-journey-card is-static${kind}`}>{body}</div>
 }
 
-const Leg: FC<{ leg: MapSidebarLeg; sbb: boolean }> = ({ leg, sbb }) => leg.kind === 'walk'
+const Leg: FC<{ leg: MapSidebarLeg; sbb: boolean; run: (action: string) => void }> = ({ leg, sbb, run }) => leg.kind === 'walk'
   ? <div className="map-leg is-walk"><span className="map-leg-time">{leg.duration}</span><span className="map-leg-spine is-walk"><Walk /></span><span className="map-leg-body">{leg.text}</span></div>
-  : <div className="map-leg">
+  // A ride leg with an `action` opens the ride's run; the whole card is its target.
+  : <div className={`map-leg${leg.action ? ' is-action' : ''}`} {...(leg.action ? {
+    role: 'button', tabIndex: 0, title: uiText('journey.rideInfo'),
+    onClick: () => run(leg.action!),
+    onKeyDown: (event: React.KeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); run(leg.action!) } }
+  } : {})}>
     <div className="map-leg-call">
       <span className="map-leg-time"><Time time={leg.from.time} strong /></span>
       <span className="map-leg-spine"><span className="map-leg-dot" /></span>
@@ -109,7 +132,7 @@ const Leg: FC<{ leg: MapSidebarLeg; sbb: boolean }> = ({ leg, sbb }) => leg.kind
     <div className="map-leg-ride">
       <span className="map-leg-time" />
       <span className="map-leg-spine is-line" />
-      <span className="map-leg-body"><span className="map-journey-head"><Badge badge={leg.badge} sbb={sbb} /></span>{leg.direction && <span className="map-leg-direction">{leg.direction}</span>}{leg.note && <span className="map-journey-warn">{leg.note}</span>}</span>
+      <span className="map-leg-body"><span className="map-journey-head"><Badge badge={leg.badge} sbb={sbb} />{leg.occupancy && <Occupancies occupancy={leg.occupancy} />}</span>{leg.direction && <span className="map-leg-direction">{leg.direction}</span>}{leg.note && <span className="map-journey-warn">{leg.note}</span>}</span>
     </div>
     <div className="map-leg-call">
       <span className="map-leg-time"><Time time={leg.to.time} /></span>
@@ -119,13 +142,49 @@ const Leg: FC<{ leg: MapSidebarLeg; sbb: boolean }> = ({ leg, sbb }) => leg.kind
     </div>
   </div>
 
-const JourneyDetail: FC<{ detail: MapSidebarJourneyDetail; sbb: boolean }> = ({ detail, sbb }) => (
+const JourneyDetail: FC<{ detail: MapSidebarJourneyDetail; sbb: boolean; run: (action: string) => void }> = ({ detail, sbb, run }) => (
   <div className="map-journey-detail">
     <div className="map-journey-summary">
       <span className="map-journey-times"><Time time={detail.departure} strong /><Track changes={detail.legs.filter(leg => leg.kind === 'ride').length - 1} stops={detail.stops} /><Time time={detail.arrival} strong /></span>
       <span className="map-journey-meta"><span>{detail.summary}</span></span>
     </div>
-    <div className="map-legs">{detail.legs.map((leg, index) => <Leg key={index} leg={leg} sbb={sbb} />)}</div>
+    <div className="map-legs">{detail.legs.map((leg, index) => <Leg key={index} leg={leg} sbb={sbb} run={run} />)}</div>
+    {detail.legend && <Legend legend={detail.legend} />}
+  </div>
+)
+
+/** A ride stop's clock: the expected time alone, in the late colour, when it differs from the plan. */
+const RideTime: FC<{ time: MapSidebarTime; strong?: boolean }> = ({ time, strong }) => {
+  const late = time.late && time.expected
+  return <span className={`map-ride-time${strong ? ' is-strong' : ''}${late ? ' is-late' : ''}`} title={late ? time.time : undefined}>{late ? time.expected : time.time}</span>
+}
+
+/**
+ * A ride's run: header card, then every supplied stop on one spine. Arrival above departure (the
+ * departure bold; a lone time at either end is bold), name truncating, platform at the right. Boarding
+ * and alighting are filled dots in bold, stops ridden past small rings, stops outside the traveller's
+ * part dimmed.
+ */
+const RideInfo: FC<{ ride: MapSidebarRide; sbb: boolean }> = ({ ride, sbb }) => (
+  <div className="map-ride">
+    <div className="map-ride-head">
+      <span className="map-journey-head"><Badge badge={ride.badge} sbb={sbb} />{ride.number && <span className="map-ride-number">{ride.number}</span>}{ride.occupancy && <Occupancies occupancy={ride.occupancy} />}</span>
+      {ride.direction && <span className="map-leg-direction">{ride.direction}</span>}
+    </div>
+    <ol className="map-ride-stops">
+      {ride.stops.map((stop: MapSidebarRideStop, index) => (
+        <li key={index} className={`map-ride-stop is-${stop.role ?? 'outside'}`}>
+          <span className="map-ride-times">
+            {stop.arrival && <RideTime time={stop.arrival} strong={!stop.departure} />}
+            {stop.departure && <RideTime time={stop.departure} strong />}
+          </span>
+          <span className="map-ride-spine" aria-hidden="true"><span className="map-ride-dot" /></span>
+          <span className="map-ride-name"><span className="map-ride-title">{stop.name}</span>{stop.occupancy && <Occupancies occupancy={stop.occupancy} />}</span>
+          <span className="map-ride-platform">{stop.platform}</span>
+        </li>
+      ))}
+    </ol>
+    {ride.legend && <Legend legend={ride.legend} />}
   </div>
 )
 
@@ -371,10 +430,13 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
   const ring = (stop: MapSidebarRouteStop) => stop.location ? <span className="map-route-ring is-location" /> : <span className={`map-route-ring${stop.role === 'destination' ? ' is-target' : stop.role === 'via' ? ' is-via' : ''}`} />
   const when = snapshot.route?.when
   const journeys = snapshot.journeys ?? []
+  // A ride's run sits over the opened connection: its back bar returns to the connection, the connection's to the list.
+  const back = snapshot.ride ? { action: snapshot.ride.back, title: snapshot.ride.title, label: uiText('journey.backToConnection') }
+    : snapshot.journey ? { action: snapshot.journey.back, title: snapshot.journey.title, label: uiText('journey.back') } : undefined
 
   return (
     <div className={`map-journey${sbb ? ' is-sbb' : ''}`} aria-busy={busy}
-      onKeyDown={(event) => { if (event.key === 'Escape' && snapshot.journey) { event.stopPropagation(); act(snapshot.journey.back) } }}>
+      onKeyDown={(event) => { if (event.key === 'Escape' && back) { event.stopPropagation(); act(back.action) } }}>
       {dragged && order.drag && <div className={`map-route-chip is-${dragged.role}`} style={{ left: order.drag.x - 14, top: order.drag.y - 15 }} aria-hidden="true">
         {ring(dragged)}<span>{dragged.value}</span>
       </div>}
@@ -393,10 +455,10 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
           ))}
         </div>
       )}
-      {snapshot.journey && (
+      {back && (
         <div className={`map-journey-backbar${snapshot.segments ? ' is-under-segments' : ''}`}>
-          <button type="button" className="panel-tool-btn" title={uiText('journey.back')} aria-label={uiText('journey.back')} onClick={() => act(snapshot.journey!.back)}><ChevronLeft /></button>
-          <span className="map-journey-backbar-title">{snapshot.journey.title}</span>
+          <button type="button" className="panel-tool-btn" title={back.label} aria-label={back.label} onClick={() => act(back.action)}><ChevronLeft /></button>
+          <span className="map-journey-backbar-title">{back.title}</span>
         </div>
       )}
       <div className="map-journey-body">
@@ -451,8 +513,10 @@ export function JourneyPanel({ extension, snapshot, run, pending }: {
           </div>
         )}
         {(snapshot.error) && <p role="alert" className="map-journey-error">{snapshot.error}</p>}
-        {suggesting ? null : snapshot.journey
-          ? <JourneyDetail detail={snapshot.journey} sbb={sbb} />
+        {suggesting ? null : snapshot.ride
+          ? <RideInfo ride={snapshot.ride} sbb={sbb} />
+          : snapshot.journey
+          ? <JourneyDetail detail={snapshot.journey} sbb={sbb} run={action => act(action)} />
           : <>
             {snapshot.route?.caption && <span className="map-journey-caption">{snapshot.route.caption}</span>}
             {journeys.length > 0 && (

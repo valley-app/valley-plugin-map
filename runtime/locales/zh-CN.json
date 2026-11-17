@@ -493,6 +493,8 @@
   "pins.row.hint": "单击显示其笔记 · 双击在地图上显示 · 拖动或 Alt+↑/↓ 重新排序",
   "journey.platformChanged": "站台变更",
   "journey.back": "返回连接列表",
+  "journey.backToConnection": "返回此连接",
+  "journey.rideInfo": "显示本次行程的所有站点",
   "journey.swap": "交换起点和终点",
   "journey.soon": "即将推出",
   "places.folders.edit": "编辑文件夹",

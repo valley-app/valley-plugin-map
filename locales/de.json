@@ -493,6 +493,8 @@
   "pins.row.hint": "Klicken zeigt die Notizen · Doppelklick zeigt sie auf der Karte · Ziehen oder Alt+↑/↓ ordnet um",
   "journey.platformChanged": "Gleisänderung",
   "journey.back": "Zurück zu den Verbindungen",
+  "journey.backToConnection": "Zurück zur Verbindung",
+  "journey.rideInfo": "Alle Halte dieser Fahrt zeigen",
   "journey.swap": "Start und Ziel tauschen",
   "journey.soon": "Kommt später",
   "places.folders.edit": "Ordner bearbeiten",

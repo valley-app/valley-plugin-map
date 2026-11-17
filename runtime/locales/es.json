@@ -493,6 +493,8 @@
   "pins.row.hint": "Clic para ver sus notas · doble clic para verlas en el mapa · arrastra o Alt+↑/↓ para reordenar",
   "journey.platformChanged": "Cambio de andén",
   "journey.back": "Volver a las conexiones",
+  "journey.backToConnection": "Volver a la conexión",
+  "journey.rideInfo": "Mostrar todas las paradas de este trayecto",
   "journey.swap": "Intercambiar origen y destino",
   "journey.soon": "Próximamente",
   "places.folders.edit": "Editar carpeta",

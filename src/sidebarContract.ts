@@ -26,11 +26,31 @@ export type MapSidebarJourney = {
   platformChanged?: boolean
 }
 export type MapSidebarCall = { time: MapSidebarTime; name: string; platform?: string }
+/** An occupancy forecast per class, 1 (low) to 3 (high); only the classes the provider supplies. */
+export type MapSidebarOccupancy = { first?: number; second?: number }
+/**
+ * A ride leg; `action` opens the ride's run (`ride` on the snapshot), `occupancy` is the provider's forecast
+ * for the whole leg.
+ */
 export type MapSidebarLeg =
-  | { kind: 'ride'; badge: MapSidebarBadge; direction: string; from: MapSidebarCall; to: MapSidebarCall; note?: string }
+  | { kind: 'ride'; badge: MapSidebarBadge; direction: string; from: MapSidebarCall; to: MapSidebarCall; note?: string; action?: string; occupancy?: MapSidebarOccupancy }
   | { kind: 'walk'; text: string; duration?: string }
+/** Notes under a detail: a title, one line per item (`level` 1 to 3 draws that occupancy before the text) and a closing note. */
+export type MapSidebarLegend = { title: string; items: { level?: number; text: string }[]; note?: string }
 /** An opened connection: header plus its legs as a timeline. `back` returns to the list. */
-export type MapSidebarJourneyDetail = { title: string; departure: MapSidebarTime; arrival: MapSidebarTime; summary: string; legs: MapSidebarLeg[]; back: string; stops?: number[] }
+export type MapSidebarJourneyDetail = { title: string; departure: MapSidebarTime; arrival: MapSidebarTime; summary: string; legs: MapSidebarLeg[]; back: string; stops?: number[]; legend?: MapSidebarLegend }
+/**
+ * One stop of a ride's run: where the traveller boards, alights, rides past (`pass`) or a stop after
+ * alighting (`after`); a stop without a role lies outside the traveller's part too. Only one time at the
+ * first and last stop; `occupancy` only when the provider supplies it for that stop.
+ */
+export type MapSidebarRideStop = { name: string; arrival?: MapSidebarTime; departure?: MapSidebarTime; platform?: string; role?: 'board' | 'alight' | 'pass' | 'after'; occupancy?: MapSidebarOccupancy }
+/**
+ * A ride's run, opened from a ride leg's `action`, shown instead of the opened connection: `title` in the
+ * back bar, a header (badge, the train `number` when it differs from the line, `direction`, the leg's
+ * `occupancy`) and every stop the provider supplies. `back` returns to the connection.
+ */
+export type MapSidebarRide = { title: string; back: string; badge: MapSidebarBadge; number?: string; direction?: string; occupancy?: MapSidebarOccupancy; stops: MapSidebarRideStop[]; legend?: MapSidebarLegend }
 export type MapSidebarTile = {
   id: string; label: string; detail?: string; action: string; icon?: 'location' | 'origin' | 'destination' | 'station'; active?: boolean; wide?: boolean
   /** A quieter first line above `label` (`Baden` above `Bahnhof West`). */
@@ -71,7 +91,7 @@ export type MapSidebarOverlay = { paths?: MapSidebarPath[]; markers?: MapSidebar
 /**
  * What a sidebar tab shows. `fields`, `actions` and `rows` are the original
  * plain form; everything after them is optional and newer, and a tab that sets
- * `segments`, `route`, `journeys`, `journey` or `tiles` is drawn as a journey
+ * `segments`, `route`, `journeys`, `journey`, `ride` or `tiles` is drawn as a journey
  * planner instead. Hosts that predate those keys keep showing the plain form.
  *
  * Planner events arrive through `run`: `segment:<id>`, `input:<stopId>` (with
@@ -93,6 +113,8 @@ export interface MapSidebarSnapshot {
   rowsTitle?: string
   journeys?: MapSidebarJourney[]
   journey?: MapSidebarJourneyDetail
+  /** A ride's run, drawn instead of `journey` while set. */
+  ride?: MapSidebarRide
   tiles?: MapSidebarTile[]
   /** Draw the planner in the provider's own colours and badges; `sbb` is the Swiss timetable look. */
   look?: 'sbb'

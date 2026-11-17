@@ -180,6 +180,41 @@ const CSS = `
 .map-leg-body { display:flex; flex-direction:column; gap:3px; min-width:0; font-size:0.75rem; color:var(--text-secondary); }
 .map-leg.is-walk .map-leg-body { flex-direction:row; }
 .map-leg-direction { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-leg.is-action { cursor:pointer; }
+.map-leg.is-action:hover { background:var(--hover-bg); }
+.map-leg.is-action:focus-visible { outline:2px solid var(--accent-color, currentColor); outline-offset:-2px; }
+.map-leg .map-journey-head .map-occupancies, .map-ride-head .map-journey-head .map-occupancies { margin-left:auto; }
+.map-legend { display:flex; flex-direction:column; gap:6px; padding:8px 2px 4px; font-size:0.75rem; color:var(--text-secondary); }
+.map-legend-title { margin-bottom:2px; font-size:0.8125rem; color:var(--text-color); }
+.map-legend-item { display:flex; align-items:center; gap:8px; }
+.map-legend-item .map-occupancy { flex:0 0 auto; }
+.map-occupancy > span:empty { display:none; }
+.map-legend-note { margin-top:4px; }
+/* A ride's run: header card, then the stops on one spine (time | spine | name | platform), one line per stop. */
+.map-ride { display:flex; flex-direction:column; gap:8px; }
+.map-ride-head { display:flex; flex-direction:column; gap:4px; min-width:0; padding:10px 12px; border:1px solid var(--border-light); border-radius:8px; background:var(--container-color-alt); font-size:0.75rem; color:var(--text-secondary); }
+.map-ride-number { font-size:0.84375rem; font-weight:700; color:var(--text-color); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.map-ride-stops { --ride-line:var(--text-secondary); --ride-dim:color-mix(in srgb, var(--ride-line) 40%, transparent); margin:0; padding:0 12px 12px; list-style:none; border:1px solid var(--border-light); border-radius:8px; background:var(--container-color-alt); }
+.map-ride-stop { display:grid; grid-template-columns:40px 12px minmax(0,1fr) auto; align-items:end; column-gap:8px; }
+.map-ride-times { display:flex; flex-direction:column; justify-content:flex-end; padding-top:12px; font-size:0.75rem; line-height:18px; font-variant-numeric:tabular-nums; color:var(--text-secondary); }
+.map-ride-time { white-space:nowrap; }
+.map-ride-time.is-strong { font-weight:700; color:var(--text-color); }
+.map-ride-time.is-late { color:var(--tint-red-text, #b91c1c); }
+.map-ride-spine { position:relative; align-self:stretch; }
+.map-ride-spine::before, .map-ride-spine::after { content:''; position:absolute; left:50%; width:2px; background:var(--ride-line); transform:translateX(-50%); }
+.map-ride-spine::before { top:0; bottom:9px; }
+.map-ride-spine::after { bottom:0; height:9px; }
+.map-ride-stop:first-child .map-ride-spine::before, .map-ride-stop:last-child .map-ride-spine::after { display:none; }
+.map-ride-stop.is-after .map-ride-spine::before, .map-ride-stop.is-after .map-ride-spine::after, .map-ride-stop.is-outside .map-ride-spine::before, .map-ride-stop.is-outside .map-ride-spine::after,
+.map-ride-stop.is-outside + .map-ride-stop .map-ride-spine::before, .map-ride-stop:has(+ .is-after) .map-ride-spine::after, .map-ride-stop:has(+ .is-outside) .map-ride-spine::after { background:var(--ride-dim); }
+.map-ride-dot { position:absolute; z-index:1; left:50%; bottom:9px; width:7px; height:7px; box-sizing:border-box; border:1.5px solid var(--ride-line); border-radius:50%; background:var(--container-color-alt); transform:translate(-50%, 50%); }
+.map-ride-stop.is-board .map-ride-dot, .map-ride-stop.is-alight .map-ride-dot { width:11px; height:11px; border:0; background:var(--text-color); }
+.map-ride-name { display:flex; align-items:center; gap:8px; min-width:0; font-size:0.8125rem; line-height:18px; color:var(--text-color); }
+.map-ride-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-ride-name .map-occupancies { flex-shrink:0; }
+.map-ride-platform { font-size:0.75rem; line-height:18px; white-space:nowrap; color:var(--text-color); }
+.map-ride-stop.is-board :is(.map-ride-title, .map-ride-platform), .map-ride-stop.is-alight :is(.map-ride-title, .map-ride-platform) { font-weight:700; }
+.map-ride-stop:is(.is-after, .is-outside) :is(.map-ride-times, .map-ride-name, .map-ride-platform) { opacity:.5; }
 .map-tiles { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
 /* Placed tiles (column/row/columns/rows) sit on a four-column grid and may leave empty cells. */
 .map-tiles.is-placed { grid-template-columns:repeat(4, minmax(0, 1fr)); grid-auto-rows:62px; }
@@ -277,6 +312,17 @@ const CSS = `
 .is-sbb .map-leg.is-walk .map-leg-time { flex:0 0 32px; text-align:right; color:var(--sbb-text); font-size:0.75rem; }
 .is-sbb .map-leg.is-walk .map-leg-spine { color:var(--sbb-text); }
 .is-sbb .map-leg.is-walk .map-leg-body { color:var(--sbb-text); font-size:0.8125rem; }
+.is-sbb .map-leg.is-action:hover { background:var(--sbb-hover); }
+.is-sbb .map-occupancy.is-level-3 svg.is-on { fill:var(--sbb-late); }
+.is-sbb .map-legend { color:var(--sbb-text); }
+.is-sbb .map-legend-title { color:var(--sbb-text); }
+.is-sbb .map-ride-head, .is-sbb .map-ride-stops { border:0; border-radius:10px; background:var(--sbb-card); box-shadow:var(--sbb-shadow); }
+.is-sbb .map-ride-head { color:var(--sbb-text); font-size:0.8125rem; }
+.is-sbb .map-ride-stops { --ride-line:var(--sbb-text); }
+.is-sbb .map-ride-dot { background:var(--sbb-card); }
+.is-sbb .map-ride-number, .is-sbb .map-ride-name, .is-sbb .map-ride-platform, .is-sbb .map-ride-times, .is-sbb .map-ride-time.is-strong { color:var(--sbb-text); }
+.is-sbb .map-ride-stop.is-board .map-ride-dot, .is-sbb .map-ride-stop.is-alight .map-ride-dot { background:var(--sbb-text); }
+.is-sbb .map-ride-time.is-late { color:var(--sbb-late); }
 .is-sbb .map-journey-error { color:var(--sbb-late); background:var(--sbb-card); }
 .is-sbb .map-journey-suggestion { background:var(--sbb-card); color:var(--sbb-text); }
 .is-sbb .map-journey-suggestion .map-row-icon { color:var(--sbb-text); }

@@ -493,6 +493,8 @@
   "pins.row.hint": "Click to show its notes · double-click to show them on the map · drag or Alt+↑/↓ to reorder",
   "journey.platformChanged": "Platform changed",
   "journey.back": "Back to connections",
+  "journey.backToConnection": "Back to the connection",
+  "journey.rideInfo": "Show every stop of this ride",
   "journey.swap": "Swap start and destination",
   "journey.soon": "Coming later",
   "places.folders.edit": "Edit folder",
