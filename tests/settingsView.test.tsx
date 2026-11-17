@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -119,9 +121,8 @@ describe('Map pin source editor', () => {
 
   it('edits the rule as two fields joined by =', async () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
-    const row = screen.getByText('Property and value').closest('.settings-path-row') as HTMLElement
-    const match = row.querySelector('.settings-row-control.map-source-match') as HTMLElement
-    expect(match).not.toBeNull()
+    const match = screen.getByRole('textbox', { name: 'Value' }).closest('.map-source-form-control') as HTMLElement
+    expect(match.previousElementSibling).toHaveTextContent(/^Property$/)
     expect(within(match).getByRole('textbox', { name: 'Property' })).toHaveValue('type')
     expect(within(match).getByRole('textbox', { name: 'Value' })).toHaveValue('contact')
     expect(match).toHaveTextContent('=')
@@ -144,7 +145,7 @@ describe('Map pin source editor', () => {
     expect(chips[0].getAttribute('data-color')).toBe('palette:primary-blue')
     expect(chips[1].getAttribute('data-color')).toBe('#ffffff')
     // The icon picker sits in the same row, before the colours.
-    const row = screen.getByText('Icon and colours').closest('.settings-path-row') as HTMLElement
+    const row = screen.getByText('Look').nextElementSibling as HTMLElement
     const picker = within(row).getByRole('button', { name: 'Pin icon' })
     expect(picker.compareDocumentPosition(chips[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     dispose()
@@ -169,9 +170,12 @@ describe('Map pin source editor', () => {
   it('gives Delete a glyph on a kit Button and arms it before deleting', async () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
 
-    const row = screen.getByText('Delete source').closest('.settings-path-row') as HTMLElement
+    // Use and delete share one footer row: the switch at the left, Delete at the right.
+    const row = document.querySelector('.map-source-footer') as HTMLElement
+    expect(within(row).getByRole('switch', { name: 'Use this source' })).toBeInTheDocument()
+    expect(row.querySelector('.map-source-use')).toHaveAttribute('title', expect.stringContaining('draws no pins'))
     const remove = within(row).getByRole('button')
-    expect(remove).toHaveTextContent('Delete')
+    expect(remove).toHaveTextContent('Delete source')
     // A kit button, not a hand-rolled one — the frame, padding and typography
     // come from the kit so the two plugins cannot drift apart on them.
     expect(remove.getAttribute('data-variant')).toBe('ghost')
@@ -276,7 +280,7 @@ describe('Map pin source editor', () => {
     expect(count).toHaveTextContent(/^1$/)
     expect(count).toHaveAttribute('title', '1 note found · 1 on the map')
     // The name and sub-line open the source.
-    fireEvent.click(row.querySelector('button.map-source-meta')!)
+    fireEvent.click(row.querySelector('.map-source-name')!)
     expect(row.querySelector('.map-source-editor')).not.toBeNull()
     dispose()
   })
@@ -313,7 +317,8 @@ describe('Map pin source editor', () => {
 
   it('commits popup fields through the chips field', async () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
-    const row = screen.getByText('Popup fields').closest('.settings-path-row') as HTMLElement
+    const row = screen.getByText('Popup').nextElementSibling as HTMLElement
+    expect(screen.getByText('Popup')).toHaveAttribute('title', 'Shown when you hover a pin, in this order')
     const chips = row.querySelector('.settings-chips-field') as HTMLElement
     expect(chips).toHaveTextContent('profession')
     expect(chips).toHaveTextContent('place')
@@ -327,14 +332,14 @@ describe('Map pin source editor', () => {
 
   it('switches the default location property with the coordinate mode and preserves custom fields', async () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([{ ...CONTACTS_SOURCE, locationField: 'address' }]) })
-    const mode = screen.getByRole('group', { name: 'Location from' })
+    const mode = screen.getByRole('group', { name: 'Read from' })
     expect(within(mode).getByRole('button', { name: 'Address' })).toHaveAttribute('aria-pressed', 'true')
     await act(async () => fireEvent.click(within(mode).getByRole('button', { name: 'Coordinates' })))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Location property' })).toHaveValue('coordinates'))
     const property = screen.getByRole('textbox', { name: 'Location property' })
     fireEvent.change(property, { target: { value: 'habitat' } })
     await act(async () => fireEvent.blur(property))
-    await act(async () => fireEvent.click(within(screen.getByRole('group', { name: 'Location from' })).getByRole('button', { name: 'Address' })))
+    await act(async () => fireEvent.click(within(screen.getByRole('group', { name: 'Read from' })).getByRole('button', { name: 'Address' })))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Location property' })).toHaveValue('habitat'))
     expect(storedSources(mock)[0].locationField).toBe('habitat')
     dispose()
@@ -343,23 +348,74 @@ describe('Map pin source editor', () => {
   it('asks for the title property only when the pin title comes from a property', async () => {
     const { mock, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
     expect(screen.queryByRole('textbox', { name: 'Title property' })).toBeNull()
-    await act(async () => fireEvent.click(within(screen.getByRole('group', { name: 'Pin title' })).getByRole('button', { name: 'Property' })))
+    await act(async () => fireEvent.click(within(screen.getByRole('group', { name: 'Title' })).getByRole('button', { name: 'Property' })))
     await waitFor(() => expect(storedSources(mock)[0].labelMode).toBe('property'))
     const field = screen.getByRole('textbox', { name: 'Title property' })
-    expect(field.closest('.settings-path-row')).toHaveTextContent('Pin title')
+    // The title property sits on its own line right under the Filename | Property choice.
+    expect(field.closest('.map-source-form-control')!.previousElementSibling!.previousElementSibling!.querySelector('[role=group]')).toHaveAccessibleName('Title')
     fireEvent.change(field, { target: { value: 'name' } })
     await act(async () => fireEvent.blur(field))
     await waitFor(() => expect(storedSources(mock)[0].labelField).toBe('name'))
     dispose()
   })
 
-  it('orders the editor groups Notes, Location, Pin, Popup, then use and delete', async () => {
+  it('lays the editor out as Name, then Notes, Location and Pin, then use and delete', async () => {
     const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) })
     const editor = document.querySelector('.map-source-editor') as HTMLElement
-    expect([...editor.querySelectorAll('.map-source-group > .settings-label')].map(node => node.textContent)).toEqual(['Notes', 'Location', 'Pin', 'Popup'])
-    expect([...editor.querySelectorAll('.settings-toggle-title')].map(node => node.textContent)).toEqual([
-      'Folder', 'Property and value', 'Location from', 'Location property', 'Icon and colours', 'Pin title', 'Popup fields', 'Use this source', 'Delete source'
+    expect([...editor.querySelectorAll('.map-source-group > .map-source-group-title')].map(node => node.textContent)).toEqual(['Notes', 'Location', 'Pin'])
+    expect([...editor.querySelectorAll('.map-source-form-label')].map(node => node.textContent).filter(Boolean)).toEqual([
+      'Name', 'Folder', 'Property', 'Read from', 'Look', 'Title', 'Popup'
     ])
+    // The name is edited in the form, never in the head; the status sits under the rule.
+    expect(within(editor).getByRole('textbox', { name: 'Source title' })).toHaveValue('Contacts')
+    expect(document.querySelector('.map-source-head input:not([type=checkbox])')).toBeNull()
+    const stats = editor.querySelector('.map-source-stats') as HTMLElement
+    expect(stats.closest('.map-source-group')).toHaveTextContent('Notes')
+    expect(editor.querySelector('.map-source-footer')).toHaveTextContent('Use this source')
+    dispose()
+  })
+
+  it('keeps the head identical open and closed, with the chevron between the count and the switch', async () => {
+    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) }, false)
+    const head = document.querySelector('.map-source-head') as HTMLElement
+    const children = (): string[] => [...head.children].map(node => node.className || node.getAttribute('role') || node.tagName)
+    const closed = { html: head.querySelector('.map-source-meta')!.outerHTML, count: head.querySelector('.map-source-count')!.outerHTML, children: children() }
+    expect(head.querySelector('.map-source-name')).toHaveTextContent('Contacts')
+    expect(head.querySelector('.map-source-sub')).toHaveTextContent(/^type = contact · /)
+    const order = [...head.children]
+    const count = order.indexOf(head.querySelector('.map-source-count')!)
+    const chevron = order.indexOf(head.querySelector('.map-source-disclosure')!)
+    expect(chevron).toBe(count + 1)
+    expect(order[chevron + 1]).toBe(within(head).getByRole('switch', { name: 'Contacts' }).closest('.map-source-head > *'))
+    // A click anywhere on the head opens the source; only the chevron turns.
+    fireEvent.click(head.querySelector('.map-source-count')!)
+    expect(document.querySelector('.map-source-editor')).not.toBeNull()
+    expect(head.querySelector('.map-source-disclosure')).toHaveAttribute('aria-expanded', 'true')
+    expect({ html: head.querySelector('.map-source-meta')!.outerHTML, count: head.querySelector('.map-source-count')!.outerHTML, children: children() }).toEqual(closed)
+    fireEvent.click(head.querySelector('.map-source-name')!)
+    expect(document.querySelector('.map-source-editor')).toBeNull()
+    dispose()
+  })
+
+  it('expands and collapses every listed source from the toolbar', async () => {
+    const definitions = [CONTACTS_SOURCE, { ...CONTACTS_SOURCE, id: 'second', title: 'Second' }, { ...CONTACTS_SOURCE, id: 'third', title: 'Third' }]
+    const { dispose } = await renderPins({ datasets: sourceDatasets(definitions) }, false)
+    const toolbar = document.querySelector('.map-sources-toolbar') as HTMLElement
+    const opened = (): boolean[] => [...document.querySelectorAll('.map-source-row')].map(row => row.classList.contains('is-open'))
+    // Search, then the expand/collapse button, then Add source.
+    const fold = within(toolbar).getByRole('button', { name: 'Expand all sources' })
+    expect(fold).toHaveClass('panel-tool-btn')
+    expect(fold.previousElementSibling).toHaveClass('map-sources-search')
+    expect(fold.nextElementSibling).toHaveClass('map-add-source-row')
+    fireEvent.click(fold)
+    expect(opened()).toEqual([true, true, true])
+    fireEvent.click(within(toolbar).getByRole('button', { name: 'Collapse all sources' }))
+    expect(opened()).toEqual([false, false, false])
+    // Any open source turns the button into Collapse all.
+    fireEvent.click(document.querySelectorAll('.map-source-disclosure')[1])
+    expect(opened()).toEqual([false, true, false])
+    fireEvent.click(within(toolbar).getByRole('button', { name: 'Collapse all sources' }))
+    expect(opened()).toEqual([false, false, false])
     dispose()
   })
 
@@ -371,9 +427,28 @@ describe('Map pin source editor', () => {
 
     const fills = [...document.querySelectorAll('.settings-color-swatch[data-variant="fill"]')]
     expect(fills.map((chip) => chip.getAttribute('data-color'))).toEqual([
-      'palette:primary-blue',
-      'palette:yellow'
+      'palette:yellow',
+      'palette:primary-blue'
     ])
+    dispose()
+  })
+
+  it('fills the pane and keeps the Pin sources bar outside the scrolling content', async () => {
+    const config = JSON.parse(readFileSync(path.resolve(__dirname, '../config.json'), 'utf8')) as { settingsSections: { id: string; layout?: string }[] }
+    expect(config.settingsSections.find(section => section.id === 'pins')?.layout).toBe('fill')
+    // Only the pins page scrolls itself; the other sections keep the pane's scrolling.
+    expect(config.settingsSections.filter(section => section.layout === 'fill').map(section => section.id)).toEqual(['pins'])
+    const { dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]) }, false)
+    const frame = document.querySelector('.map-pins-frame') as HTMLElement
+    expect(frame).toHaveAttribute('data-plugin-widget-layout', 'fill')
+    const bar = document.querySelector('.map-sources-header') as HTMLElement
+    const body = document.querySelector('.map-pins-body') as HTMLElement
+    expect(bar).toHaveClass('settings-listpage-header')
+    expect(within(bar).getByRole('switch', { name: 'All sources' })).toBeInTheDocument()
+    // The bar is the ScrollPanel's header: never inside the content that scrolls.
+    expect(body.contains(bar)).toBe(false)
+    expect(bar.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    for (const part of ['.map-sources-description', '.map-sources-toolbar', '.map-source-list']) expect(body.querySelector(part), part).not.toBeNull()
     dispose()
   })
 
@@ -382,14 +457,15 @@ describe('Map pin source editor', () => {
     const toolbar = document.querySelector('.map-sources-toolbar') as HTMLElement
     expect(within(toolbar).getByRole('textbox', { name: 'Find pin sources' })).toBeInTheDocument()
     expect(within(toolbar).getByRole('button', { name: /Add source/i }).closest('.map-add-source-row')).not.toBeNull()
-    // The icon folder row now sits below the list.
-    const icons = screen.getByText('Pin icons').closest('.settings-path-row') as HTMLElement
-    expect(document.querySelector('.map-source-list')!.compareDocumentPosition(icons) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // A source added beside collapsed ones opens by itself; the others stay closed.
+    // The page has no Pin icons row: the icon popover carries its own folder actions.
+    expect(screen.queryByText('Pin icons')).toBeNull()
+    expect(document.querySelectorAll('.settings-section')).toHaveLength(1)
+    // A new source goes first, open, while the others stay closed.
     await act(async () => fireEvent.click(within(toolbar).getByRole('button', { name: /Add source/i })))
     await waitFor(() => expect(document.querySelectorAll('.map-source-row')).toHaveLength(2))
-    expect([...document.querySelectorAll('.map-source-row')].map(row => row.classList.contains('is-open'))).toEqual([false, true])
-    expect(document.querySelector('.map-source-title')!.querySelector('input')).toHaveAccessibleName('Source title')
+    expect([...document.querySelectorAll('.map-source-row')].map(row => row.classList.contains('is-open'))).toEqual([true, false])
+    expect(document.querySelector('.map-source-row .map-source-name')).toHaveTextContent('Untitled')
+    expect(within(document.querySelector('.map-source-editor') as HTMLElement).getByRole('textbox', { name: 'Source title' })).toHaveValue('')
     dispose()
 
     const mock = createMockValleyApi({ manifest: { id: 'map', drivers: ['files'] } })
@@ -531,8 +607,10 @@ describe('Map pin sources: one list, not two', () => {
 
     // Two records, the seeded one intact — this is the write that used to leave
     // a single blank source where the Contacts pins had come from.
-    expect(storedSources(mock).map((s) => s.id)).toEqual(['pinsource-contacts', expect.any(String)])
-    expect(storedSources(mock)[0]).toMatchObject({ title: 'Contacts', matchValue: 'contact' })
+    // The new source is saved first, so the sidebar lists it first too.
+    expect(storedSources(mock).map((s) => s.id)).toEqual([expect.any(String), 'pinsource-contacts'])
+    expect(storedSources(mock)[0].id).not.toBe('pinsource-contacts')
+    expect(storedSources(mock)[1]).toMatchObject({ title: 'Contacts', matchValue: 'contact' })
     dispose()
   })
 

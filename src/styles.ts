@@ -917,6 +917,12 @@ button.map-place-sub, button.map-place-coords { align-self:flex-start; }
   .map-source-form-label:empty { display:none; }
   .map-source-form-label + .map-source-form-control { margin-bottom:4px; }
 }
+/* Map pins fills the settings pane: the frame cancels the pane's 10px inset so the
+   bar and the hairlines run edge to edge; the ScrollPanel's header and body are
+   documents of their own, so each supplies the 10px inset itself. */
+.map-pins-frame { display:flex; flex-direction:column; flex:1 1 auto; height:100%; min-height:0; min-width:0; margin:0 -10px; }
+#plugin-root .settings-listpage-header.map-sources-header { margin-inline:0; padding-inline:10px; }
+.map-settings.map-pins-body { padding:var(--space-3) 10px var(--space-4, 16px); }
 .map-sources-header { display:flex; align-items:center; gap:8px; flex:0 0 var(--app-bar-height, 38px); height:var(--app-bar-height, 38px); min-height:var(--app-bar-height, 38px); box-sizing:border-box; padding:0 10px; border-bottom:1px solid var(--border-light); font-size:var(--small-font-size); font-weight:600; background:var(--container-color); }
 .map-sources-header > span:first-child { flex:1; min-width:0; }
 .map-sources-description { margin:10px 0; color:var(--text-secondary); font-size:var(--smaller-font-size); line-height:1.5; }

@@ -71,7 +71,7 @@ describe('source editor control contract', () => {
         expect(rule, `${prefix}-row restates ${property}`).not.toContain(property)
       }
       expect(css).not.toContain(`.${prefix}-row:hover`)
-      expect(ruleFor(css, `.${prefix}-head`)).toContain('grid-template-columns:22px 22px 24px minmax(0, 1fr) auto auto')
+      expect(ruleFor(css, `.${prefix}-head`)).toContain('grid-template-columns:22px 24px minmax(0, 1fr) auto 22px auto')
     }
   })
 

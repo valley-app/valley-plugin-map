@@ -69,6 +69,7 @@
       "label": "Map pins",
       "labelKey": "plugin.map.section.pins",
       "icon": "pin",
+      "layout": "fill",
       "storage": [
         ".valley/plugins/data/map/",
         ".valley/assets/icons/map-icon/"
