@@ -259,6 +259,23 @@ it('shows only the station suggestions while a stop is typed in, and the results
   expect(screen.getByText('Earlier connections')).toBeInTheDocument()
 })
 
+it('passes the provider\'s picker design to the date and time fields and leaves the host default otherwise', () => {
+  setup()
+  const view = (picker?: 'wheel') => {
+    const snapshot: ReturnType<MapSidebarTab['getSnapshot']> = { fields: [], actions: [], rows: [],
+      route: { stops: [{ id: 'origin', role: 'origin', label: 'Von', value: 'Brugg AG' }], when: { action: 'when', now: 'now', date: '2026-11-17', time: '09:20', arrival: false, ...(picker ? { picker } : {}), text: { now: 'Now', date: 'Date', time: 'Time' } } } }
+    const extension: MapSidebarTab = { id: 'sbb', label: 'SBB', icon: { path: '', viewBox: '0 0 24 24' }, getSnapshot: () => snapshot, subscribe: () => vi.fn(), run: vi.fn(async () => {}) }
+    return render(<ExtensionPanel extension={extension} />)
+  }
+  const wheel = view('wheel')
+  expect(screen.getByLabelText('Date')).toHaveAttribute('data-picker', 'wheel')
+  expect(screen.getByLabelText('Time')).toHaveAttribute('data-picker', 'wheel')
+  wheel.unmount()
+  view()
+  expect(screen.getByLabelText('Date')).toHaveAttribute('data-picker', 'grid')
+  expect(screen.getByLabelText('Time')).toHaveAttribute('data-picker', 'grid')
+})
+
 it('draws a departure board as aligned columns: the real time alone in red, the delay in its own column, and no departure/arrival choice when the provider offers none', () => {
   setup()
   const row = (id: string, time: string, extra: Record<string, unknown> = {}) => ({ id, badge: { text: 'S12', kind: 'regional' as const }, direction: 'Brugg AG', departure: { time }, platform: 'Pl. 4', day: 'Today', ...extra })

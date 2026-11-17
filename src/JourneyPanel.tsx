@@ -139,14 +139,15 @@ const TileIcon: FC<{ icon: MapSidebarTile['icon'] }> = ({ icon }) => icon === 'l
  */
 const WhenFields: FC<{ when: MapSidebarWhen; busy: boolean; act: (action: string, values?: Record<string, string>) => void }> = ({ when, busy, act }) => {
   const { DateField, TimeField } = api.ui.settings
+  const picker = when.picker ? { picker: when.picker } : {}
   const set = (next: Partial<Pick<MapSidebarWhen, 'date' | 'time' | 'arrival'>>): void => {
     const value = { date: when.date, time: when.time, arrival: when.arrival, ...next }
     if (value.date && value.time) act(when.action, { date: value.date, time: value.time, arrival: value.arrival ? '1' : '0' })
   }
   return (
     <div className="map-route-when">
-      <div className="map-route-when-field is-date"><DateField value={when.date} onChange={date => set({ date })} clearable={false} disabled={busy} ariaLabel={when.text.date} /></div>
-      <div className="map-route-when-field is-time"><TimeField value={when.time} onChange={time => set({ time })} clearable={false} disabled={busy} ariaLabel={when.text.time ?? when.text.date} /></div>
+      <div className="map-route-when-field is-date"><DateField {...picker} value={when.date} onChange={date => set({ date })} clearable={false} disabled={busy} ariaLabel={when.text.date} /></div>
+      <div className="map-route-when-field is-time"><TimeField {...picker} value={when.time} onChange={time => set({ time })} clearable={false} disabled={busy} ariaLabel={when.text.time ?? when.text.date} /></div>
       {when.text.departure && when.text.arrival && <div className="map-route-when-mode" role="radiogroup">
         {[false, true].map(arrival => (
           <button key={String(arrival)} type="button" role="radio" aria-checked={when.arrival === arrival} className={when.arrival === arrival ? 'active' : ''} disabled={busy}

@@ -47,6 +47,8 @@ export type MapSidebarWhen = {
   date: string; time: string; arrival: boolean
   /** The date as shown (`So. 15.11.`) and the days a plugin-drawn picker offered; hosts with date fields ignore them. */
   label?: string; days?: { value: string; label: string }[]
+  /** The picker design the provider wants for its date and time fields; hosts without that choice ignore it. */
+  picker?: 'grid' | 'wheel'
   /** Without `departure` and `arrival` texts the host offers no departure/arrival choice. */
   text: { departure?: string; arrival?: string; now: string; date: string; time?: string; title?: string; apply?: string; departureShort?: string; arrivalShort?: string; close?: string }
 }
