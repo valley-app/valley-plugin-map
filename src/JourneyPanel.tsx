@@ -44,16 +44,23 @@ const Time: FC<{ time: MapSidebarTime; strong?: boolean }> = ({ time, strong }) 
   </span>
 )
 
-/** The connection line between departure and arrival, one ring per change (placed in time when the provider says where). */
-const Track: FC<{ changes: number; stops?: number[] }> = ({ changes, stops }) => (
-  <span className={`map-journey-track${stops ? ' is-timed' : ''}`} aria-hidden="true">
-    <span className="map-journey-track-dot is-end" />
-    {stops
-      ? stops.map((at, index) => <span key={index} className="map-journey-track-dot is-placed" style={{ left: `${(at * 100).toFixed(1)}%` }} />)
-      : Array.from({ length: Math.min(changes, 4) }, (_, index) => <span key={index} className="map-journey-track-dot" />)}
-    <span className="map-journey-track-dot is-end" />
-  </span>
-)
+/**
+ * The connection line between departure and arrival, broken at every change: each ride is its own
+ * stretch with a dot at both ends, so a change station shows two dots with a gap between them. The
+ * stretches are as long as their share of the time when the provider says where the changes fall.
+ */
+const Track: FC<{ changes: number; stops?: number[] }> = ({ changes, stops }) => {
+  const cuts = stops ? [0, ...stops, 1] : Array.from({ length: Math.min(changes, 4) + 2 }, (_, index) => index)
+  return (
+    <span className="map-journey-track" aria-hidden="true">
+      {cuts.slice(1).map((end, index) => (
+        <span key={index} className="map-journey-track-leg" style={{ flexGrow: Math.max(end - cuts[index], 0.01) }}>
+          <span className="map-journey-track-dot" /><span className="map-journey-track-line" /><span className="map-journey-track-dot" />
+        </span>
+      ))}
+    </span>
+  )
+}
 
 /** Three figures, as many filled as the forecast level. */
 const Occupancy: FC<{ level: number; label: string }> = ({ level, label }) => (

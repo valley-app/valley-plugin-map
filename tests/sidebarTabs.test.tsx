@@ -114,7 +114,9 @@ it('draws the SBB look: split IR badge with pictogram, day headers, earlier and 
   expect(badge.querySelector('.map-line-cat')).toHaveTextContent('IR')
   // One header per day, again where the list crosses midnight.
   expect([...container.querySelectorAll('.map-journey-day')].map(node => node.textContent)).toEqual(['Sonntag, 15.11.2026', 'Montag, 16.11.2026'])
-  expect(container.querySelector('.map-journey-track-dot.is-placed')).toHaveStyle({ left: '40.0%' })
+  // A change breaks the line: one stretch per ride with a dot at both ends, as long as its share of the time.
+  const legs = [...container.querySelectorAll<HTMLElement>('.map-journey-track')[0].querySelectorAll<HTMLElement>('.map-journey-track-leg')]
+  expect(legs.map(leg => [Number(leg.style.flexGrow).toFixed(1), leg.querySelectorAll('.map-journey-track-dot').length])).toEqual([['0.4', 2], ['0.6', 2]])
   const list = container.querySelector('.map-journey-list')!
   expect(list.firstElementChild).toHaveTextContent('Frühere Verbindungen')
   expect(list.lastElementChild).toHaveTextContent('Spätere Verbindungen')

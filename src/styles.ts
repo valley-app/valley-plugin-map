@@ -68,10 +68,6 @@ const CSS = `
 .map-occupancy > span { margin-right:2px; }
 .map-occupancy svg { width:5px; height:10px; fill:currentColor; opacity:.35; }
 .map-occupancy svg.is-on { opacity:1; }
-.map-journey-track.is-timed { display:block; }
-.map-journey-track.is-timed .map-journey-track-dot.is-end { position:absolute; top:1px; left:0; }
-.map-journey-track.is-timed .map-journey-track-dot.is-end:last-child { left:auto; right:0; }
-.map-journey-track-dot.is-placed { position:absolute; top:1px; transform:translateX(-50%); }
 .map-route-stops { flex:1; min-width:0; display:flex; flex-direction:column; }
 .map-route-stop { position:relative; display:flex; align-items:center; gap:8px; min-height:36px; padding:0 4px 0 10px; cursor:text; }
 .map-route-stop + .map-route-stop input { border-top:1px solid var(--border-light) !important; }
@@ -121,10 +117,11 @@ const CSS = `
 .map-journey-time { display:inline-flex; align-items:baseline; gap:4px; font-size:0.78125rem; font-variant-numeric:tabular-nums; color:var(--text-color); }
 .map-journey-time.is-strong { font-size:0.875rem; font-weight:700; }
 .map-journey-late { font-size:0.6875rem; font-weight:600; color:var(--tint-red-text, #b91c1c); }
-.map-journey-track { position:relative; flex:1; display:flex; align-items:center; justify-content:space-between; height:10px; }
-.map-journey-track::before { content:''; position:absolute; left:4px; right:4px; top:50%; height:2px; background:var(--text-secondary); transform:translateY(-50%); }
-.map-journey-track-dot { position:relative; width:8px; height:8px; box-sizing:border-box; border-radius:50%; border:2px solid var(--text-secondary); background:var(--container-color-alt); }
-.map-journey-track-dot.is-end { background:var(--text-color); border-color:var(--text-color); }
+/* One stretch per ride, a dot at both ends; the gap between two stretches is the change. */
+.map-journey-track { flex:1; display:flex; align-items:center; gap:4px; min-width:0; height:10px; }
+.map-journey-track-leg { flex:1 1 0; display:flex; align-items:center; min-width:20px; }
+.map-journey-track-line { flex:1; height:2px; margin:0 -1px; background:var(--text-secondary); }
+.map-journey-track-dot { flex:none; width:8px; height:8px; border-radius:50%; background:var(--text-color); }
 .map-journey-meta { display:flex; align-items:center; gap:8px; font-size:0.71875rem; color:var(--text-secondary); }
 .map-journey-duration { margin-left:auto; font-variant-numeric:tabular-nums; }
 .map-journey-warn { color:var(--tint-red-text, #b91c1c); font-weight:600; }
@@ -207,6 +204,7 @@ const CSS = `
 .map-ride-stop.is-outside + .map-ride-stop .map-ride-spine::before, .map-ride-stop:has(+ .is-after) .map-ride-spine::after, .map-ride-stop:has(+ .is-outside) .map-ride-spine::after { background:var(--ride-dim); }
 .map-ride-dot { position:absolute; z-index:1; left:50%; bottom:var(--ride-dot); width:7px; height:7px; box-sizing:border-box; border:1.5px solid var(--ride-line); border-radius:50%; background:var(--container-color-alt); transform:translate(-50%, 50%); }
 .map-ride-stop.is-board .map-ride-dot, .map-ride-stop.is-alight .map-ride-dot { width:11px; height:11px; border:0; background:var(--text-color); }
+.map-ride-stop:is(.is-after, .is-outside) .map-ride-dot { border-color:var(--ride-dim); }
 .map-ride-stop.is-late:not(.is-after, .is-outside) .map-ride-dot { border-color:var(--tint-red-text, #b91c1c); }
 .map-ride-stop.is-late:is(.is-board, .is-alight) .map-ride-dot { background:var(--tint-red-text, #b91c1c); }
 .map-ride-name { display:flex; align-items:center; gap:8px; min-width:0; font-size:0.8125rem; line-height:18px; color:var(--text-color); }
@@ -279,9 +277,8 @@ const CSS = `
 .is-sbb .map-journey-time { color:var(--sbb-text); }
 .is-sbb .map-journey-time.is-strong { font-size:0.875rem; font-weight:700; }
 .is-sbb .map-journey-late, .is-sbb .map-journey-warn { color:var(--sbb-late); }
-.is-sbb .map-journey-track::before { left:4px; right:4px; height:1.5px; background:var(--sbb-text); }
-.is-sbb .map-journey-track-dot { width:8px; height:8px; border:1.5px solid var(--sbb-text); background:var(--sbb-card); }
-.is-sbb .map-journey-track-dot.is-end { background:var(--sbb-text); border-color:var(--sbb-text); }
+.is-sbb .map-journey-track-line { height:1.5px; background:var(--sbb-text); }
+.is-sbb .map-journey-track-dot { background:var(--sbb-text); }
 .is-sbb .map-journey-meta { color:var(--sbb-text); font-size:0.75rem; }
 .is-sbb .map-journey-duration { color:var(--sbb-text); }
 .is-sbb .map-board-time, .is-sbb .map-board-dest { color:var(--sbb-text); }
