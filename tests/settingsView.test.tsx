@@ -1027,3 +1027,34 @@ it('reorders sidebar sources without losing hidden or empty definitions', async 
   expect(storedSources(mock).find(source => source.id === 'hidden')!.hidden).toBe(true)
   dispose()
 })
+
+it('orders the Map sub-pages and lets the main Map pins switch remove the page, the tab and every note pin', async () => {
+  const config = JSON.parse(readFileSync(path.resolve(__dirname, '../config.json'), 'utf8')) as { settingsSections: { id: string; visibleWhenSetting?: string }[]; settingsSchema: { fields: { key: string; default?: unknown }[] } }
+  expect(config.settingsSections.map(section => section.id)).toEqual(['pins', 'embed', 'codeBlock', 'mapbox', 'openrouteservice', 'plugins'])
+  expect(config.settingsSections.find(section => section.id === 'pins')?.visibleWhenSetting).toBe('pinsEnabled')
+  expect(config.settingsSchema.fields.find(field => field.key === 'pinsEnabled')?.default).toBe(true)
+
+  const { mock, store, dispose } = await renderPins({ datasets: sourceDatasets([CONTACTS_SOURCE]), indexEntries: [contact('Fern habitat', '47.1, 8.1', { frontmatter: { type: 'contact', lat: 47.1, lng: 8.1 } })] }, false)
+  cleanup()
+  await act(async () => { store.setPanelTab('pins'); render(<><Settings /><Panel /></>) })
+  await waitFor(() => expect(store.getSnapshot().sourcePins).toHaveLength(1))
+  const tabNames = (): string[] => screen.getAllByRole('tab').map(tab => tab.getAttribute('aria-label') ?? tab.textContent ?? '')
+  expect(tabNames()).toContain('Map pins')
+  const toggle = screen.getByRole('switch', { name: 'Enable Map pins' })
+  expect(toggle).toBeChecked()
+
+  await act(async () => fireEvent.click(toggle))
+  await waitFor(() => expect(mock.api.settings.get().pinsEnabled).toBe(false))
+  await waitFor(() => expect(store.getSnapshot().pinsEnabled).toBe(false))
+  const snap = store.getSnapshot()
+  expect(snap.sourcePins).toEqual([])
+  expect(snap.pins).toEqual([])
+  expect(snap.panelTab).toBe('search')
+  expect(tabNames()).not.toContain('Map pins')
+  expect(storedSources(mock).map(source => source.id)).toEqual([CONTACTS_SOURCE.id])
+
+  await act(async () => { await mock.api.settings.set('pinsEnabled', true) })
+  await waitFor(() => expect(store.getSnapshot().sourcePins).toHaveLength(1))
+  expect(tabNames()).toContain('Map pins')
+  dispose()
+})

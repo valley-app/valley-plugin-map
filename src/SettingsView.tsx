@@ -144,6 +144,15 @@ const MapSection: FC = () => {
         </Row>
       </Section>
 
+      <Section title={uiText('pins.featureTitle')}>
+        <Row title={uiText('auto.adc1a3bbeae6')} description={uiText('pins.featureDescription')}>
+          <div className="settings-row-control">
+            {settings.pinsEnabled && configure('pins')}
+            <Toggle checked={settings.pinsEnabled} onChange={(value) => commit('pinsEnabled', value)} label={uiText('pins.featureToggle')} />
+          </div>
+        </Row>
+      </Section>
+
       <Section title={uiText('auto.5cbd58404686')}>
         <Row title={uiText('auto.d983e02e49e4')} description={mapbox ? uiText('auto.847e50fd236c') : uiText('auto.e3d7f89dc228')}>
           <div className="settings-row-control">

@@ -546,5 +546,8 @@
   "plugins.enable": "{{p0}} in der Karte aktivieren",
   "plugins.disable": "{{p0}} in der Karte deaktivieren",
   "plugins.configure": "{{p0}} konfigurieren",
-  "settings.zoomReset": "Standardzoom zurücksetzen"
+  "settings.zoomReset": "Standardzoom zurücksetzen",
+  "pins.featureTitle": "Notizen",
+  "pins.featureDescription": "Setzt Notizen anhand ihrer Eigenschaften als Pins auf die Karte, mit dem Tab Karten-Pins in der Seitenleiste und einer eigenen Einstellungsseite.",
+  "pins.featureToggle": "Karten-Pins aktivieren"
 }

@@ -24,6 +24,7 @@ const EMPTY: MapSnapshot = {
   selectedPlaceId: null,
   hasMap: false,
   mapboxAvailable: false,
+  pinsEnabled: true,
   mapStyleConnections: [],
   clickMode: 'place',
   panelTab: 'search',

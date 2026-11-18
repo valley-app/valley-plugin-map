@@ -41,6 +41,16 @@ import type { SidebarOverlay } from './sidebarOverlay'
 import type { ValleyUnits } from '@valley/plugin-sdk/units'
 import { paletteCssValue } from '@valley/plugin-sdk/palette'
 
+/** Base64 to bytes: the engine's own decoder where it has one (Chromium 140+), else one plain loop. */
+function base64Bytes(value: string): Uint8Array<ArrayBuffer> {
+  const native = (Uint8Array as unknown as { fromBase64?: (text: string) => Uint8Array<ArrayBuffer> }).fromBase64
+  if (native) return native(value)
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+  return bytes
+}
+
 const ROUTE_SOURCE = 'sig-route'
 const SAVED_ROUTES_SOURCE = 'sig-saved-routes'
 /** Saved routes draw thinner than the open plan and in a neutral grey unless their folder has a colour. */
@@ -237,12 +247,12 @@ export class MapEngine {
     add(`${this.protocolId}-tile`, async ({ url }) => {
       const [connectionId, style, z, x, y] = new URL(url).pathname.slice(1).split('/').map(decodeURIComponent)
       const result = await run(() => mapServices(this.owner.api).tile({ connectionId, style, z: Number(z), x: Number(x), y: Number(y) }))
-      return { data: Uint8Array.from(atob(result.bodyBase64), character => character.charCodeAt(0)).buffer }
+      return { data: base64Bytes(result.bodyBase64).buffer }
     })
     add(`${this.protocolId}-resource`, async ({ url, type }) => run(async () => {
       const target = decodeURIComponent(new URL(url).pathname.slice(1))
       const result = await mapServices(this.owner.api).resource(target)
-      let bytes = Uint8Array.from(atob(result.bodyBase64), character => character.charCodeAt(0))
+      let bytes = base64Bytes(result.bodyBase64)
       if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
         const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
         bytes = new Uint8Array(await new Response(stream).arrayBuffer())

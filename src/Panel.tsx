@@ -14,11 +14,12 @@ export const Panel: FC = () => {
   // Child effects run first: the field has taken focus by now, so a later remount must not take it again.
   React.useEffect(() => { if (searchFocus) setSearchFocus(0) }, [searchFocus])
   if (!store) return null
+  const builtInTabs = snap.pinsEnabled ? BUILT_IN_TABS : BUILT_IN_TABS.filter(tab => tab.id !== 'pins')
   const extension = extensions.find(entry => entry.id === snap.panelTab)
-  const active = snap.panelTab.startsWith('extension:') && !extension ? 'search' : snap.panelTab
-  const builtIn = BUILT_IN_TABS.find(tab => tab.id === active)
+  const active = extension || builtInTabs.some(tab => tab.id === snap.panelTab) ? snap.panelTab : 'search'
+  const builtIn = builtInTabs.find(tab => tab.id === active)
   const tabs = [
-    ...BUILT_IN_TABS.map(tab => ({ id: tab.id as string, icon: <tab.Icon />, label: uiText(tab.labelKey) })),
+    ...builtInTabs.map(tab => ({ id: tab.id as string, icon: <tab.Icon />, label: uiText(tab.labelKey) })),
     ...extensions.map(({ id, provider }) => ({ id, label: provider.extension.label,
       icon: <svg width="1em" height="1em" viewBox={provider.extension.icon.viewBox} fill="currentColor" aria-hidden="true"><path d={provider.extension.icon.path} /></svg> }))
   ]
@@ -47,7 +48,7 @@ export const Panel: FC = () => {
         </div>
       </div>
       <SidebarTabs tabs={tabs} active={active} onSelect={id => store.setPanelTab(id as PanelTab)}
-        onTabClick={id => { if (BUILT_IN_TABS.find(tab => tab.id === id)?.focusOnClick) setSearchFocus(token => token + 1) }} />
+        onTabClick={id => { if (builtInTabs.find(tab => tab.id === id)?.focusOnClick) setSearchFocus(token => token + 1) }} />
       <div className="panel-body hidescrollbar">
         {builtIn && <builtIn.Panel focusToken={builtIn.focusOnClick ? searchFocus : 0} />}
         {extension && <ExtensionPanel key={`${extension.provider.sessionId}:${extension.id}`} extension={extension.provider.extension} />}

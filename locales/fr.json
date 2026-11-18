@@ -546,5 +546,8 @@
   "plugins.enable": "Activer {{p0}} dans Carte",
   "plugins.disable": "Désactiver {{p0}} dans Carte",
   "plugins.configure": "Configurer {{p0}}",
-  "settings.zoomReset": "Réinitialiser le zoom par défaut"
+  "settings.zoomReset": "Réinitialiser le zoom par défaut",
+  "pins.featureTitle": "Notes",
+  "pins.featureDescription": "Épingle les notes sur la carte selon leurs propriétés, avec l’onglet Épingles de carte dans la barre latérale et sa propre page de réglages.",
+  "pins.featureToggle": "Activer les épingles de carte"
 }

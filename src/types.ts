@@ -237,6 +237,8 @@ export interface MapSettings {
   basemapProvider: 'free' | AccountMapProvider
   defaultCenter: LngLat
   defaultZoom: number
+  /** Note pins, the Map pins tab and their Settings page; off draws no note pin and geocodes nothing. */
+  pinsEnabled: boolean
   mapboxEnabled: boolean
   openRouteServiceEnabled: boolean
   mapboxConnectionId: string

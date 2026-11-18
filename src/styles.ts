@@ -285,7 +285,7 @@ const CSS = `
 .is-sbb .map-board-time.is-late, .is-sbb .map-board-delay, .is-sbb .map-board-platform.is-changed { color:var(--sbb-late); }
 .is-sbb .map-board-platform { color:var(--sbb-text); }
 .is-sbb .map-line { display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; }
-.is-sbb .map-line-picto { width:18px; height:18px; padding:1px; box-sizing:border-box; border-radius:2px; background:var(--sbb-blue); color:#fff; }
+.is-sbb .map-line-picto { width:18px; height:18px; padding:2px; box-sizing:border-box; border-radius:2px; background:var(--sbb-blue); color:#fff; }
 .is-sbb .map-line-badge { height:18px; padding:0; border:0; border-radius:2px; background:transparent; color:var(--sbb-text); font-size:0.84375rem; font-weight:700; }
 .is-sbb .map-line-badge.is-train { gap:4px; padding:0 5px; background:var(--sbb-red); color:#fff; }
 .is-sbb .map-line-cat { font-style:italic; font-weight:800; letter-spacing:-.02em; }

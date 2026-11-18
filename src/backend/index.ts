@@ -11,7 +11,18 @@ import { createBackendRequests, type MapBackendRequest } from './requests'
 import { ACCOUNT_SEARCH_URL, PUBLIC_REQUEST_HEADERS, PUBLIC_SEARCH_URL, GEOCODE_SEARCH_LIMIT } from '../geocodeProviders'
 
 const encode = (value: unknown) => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value))))
-const decode = (value: string): unknown => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(value), (character) => character.charCodeAt(0))))
+/**
+ * JSON from a base64 body. `escape` turns the byte string into %XX escapes and `decodeURIComponent`
+ * reads them as UTF-8, both in the engine's own code: a per-byte callback runs about four times
+ * slower in the backend's interpreter. Bytes that are not UTF-8 take the replacing decoder.
+ */
+const decode = (value: string): unknown => {
+  const binary = atob(value)
+  try { return JSON.parse(decodeURIComponent(escape(binary))) } catch (error) {
+    if (!(error instanceof URIError)) throw error
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0))))
+  }
+}
 const object = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(uiText('backend.request'))
   return value as Record<string, unknown>

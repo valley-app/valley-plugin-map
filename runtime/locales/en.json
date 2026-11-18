@@ -546,5 +546,8 @@
   "plugins.enable": "Enable {{p0}} in Map",
   "plugins.disable": "Disable {{p0}} in Map",
   "plugins.configure": "Configure {{p0}}",
-  "settings.zoomReset": "Reset default zoom"
+  "settings.zoomReset": "Reset default zoom",
+  "pins.featureTitle": "Notes",
+  "pins.featureDescription": "Pin notes on the map by their properties, with the Map pins tab in the sidebar and its own settings page.",
+  "pins.featureToggle": "Enable Map pins"
 }

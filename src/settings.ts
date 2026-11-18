@@ -83,6 +83,7 @@ export function resolveSettings(raw: Record<string, unknown>): MapSettings {
     basemapProvider: accountChoice(raw.basemapProvider) ?? 'free',
     defaultCenter: DEFAULT_CENTER,
     defaultZoom: Number.isFinite(zoomRaw) && zoomRaw >= 0 && zoomRaw <= ZOOM_MAX ? zoomRaw : DEFAULT_ZOOM,
+    pinsEnabled: raw.pinsEnabled !== false,
     mapboxEnabled,
     openRouteServiceEnabled,
     mapboxConnectionId,

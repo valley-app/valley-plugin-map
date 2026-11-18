@@ -546,5 +546,8 @@
   "plugins.enable": "在地图中启用{{p0}}",
   "plugins.disable": "在地图中停用{{p0}}",
   "plugins.configure": "配置{{p0}}",
-  "settings.zoomReset": "重置默认缩放"
+  "settings.zoomReset": "重置默认缩放",
+  "pins.featureTitle": "笔记",
+  "pins.featureDescription": "根据属性将笔记作为图钉放到地图上，并在侧边栏中提供地图图钉标签页和单独的设置页面。",
+  "pins.featureToggle": "启用地图图钉"
 }

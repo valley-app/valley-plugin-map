@@ -393,6 +393,8 @@ export interface MapSnapshot {
   /** True while a map view (the page) is mounted and driving the engine. */
   hasMap: boolean
   mapboxAvailable: boolean
+  /** Settings → Map → Map pins switch: off hides the Map pins tab and draws no note pin. */
+  pinsEnabled: boolean
   mapStyleConnections: MapConnectionInfo[]
   /** What a map click does — shared by the page overlay and the sidebar chip. */
   clickMode: ClickMode
@@ -471,6 +473,7 @@ export class MapStore {
   private pins: GeoPin[] = []
   private pinSources: PinSource[] = []
   private sourcePins: NotePin[] = []
+  private pinsEnabled = true
   /** Per-source pin totals, counted before the visibility filter. */
   private sourcePinCounts: Record<string, number> = {}
   private sourcePinList: NotePin[] = []
@@ -592,7 +595,7 @@ export class MapStore {
         if (snapshot.status === 'error') { reject(new Error(snapshot.error ?? 'The map index is unavailable.')); return }
         if (snapshot.status !== 'ready') return
         this.indexEntries = snapshot.entries.map(entry => ({ ...entry, title: entry.title ?? '', kind: entry.kind ?? 'note', mtimeMs: 0 }))
-        const changed = matchSignature(this.indexEntries, this.pinSources) !== this.matchSig
+        const changed = this.pinsEnabled && matchSignature(this.indexEntries, this.pinSources) !== this.matchSig
         this.refreshDerived()
         if (changed) this.enqueueGeocoding()
         this.emit()
@@ -600,7 +603,8 @@ export class MapStore {
       })
     })
     this.offIcons = subscribeMapIcons(() => { this.refreshDerived(); this.pushPlaces(); this.emit() }, api)
-    this.offSettings = this.api.settings.subscribe(() => { this.refreshRequestProviders(); void this.refreshMapProviders(); this.pushPlaces(); this.pushRoutes() })
+    this.pinsEnabled = resolveSettings(this.api.settings.get()).pinsEnabled
+    this.offSettings = this.api.settings.subscribe(() => { this.syncPinsEnabled(); this.refreshRequestProviders(); void this.refreshMapProviders(); this.pushPlaces(); this.pushRoutes() })
     void this.refreshMapProviders()
     try {
       this.watchSourcesChanged()
@@ -704,6 +708,7 @@ export class MapStore {
       selectedPlaceId: this.selectedPlaceId,
       hasMap: this.engine !== null,
       mapboxAvailable: this.mapboxAvailable,
+      pinsEnabled: this.pinsEnabled,
       mapStyleConnections: this.mapStyleConnections,
       clickMode: this.clickMode,
       panelTab: this.panelTab,
@@ -1336,7 +1341,7 @@ export class MapStore {
   /** Rebuild source pins + generic coordinate pins from the index + geocode cache
    *  and push both to the engine. Does not geocode (see `enqueueGeocoding`). */
   private refreshDerived(): void {
-    const entries = this.indexEntries
+    const entries = this.pinsEnabled ? this.indexEntries : []
     this.matchSig = matchSignature(entries, this.pinSources)
     // Built once including the hidden sources, so the panel can state what a
     // source holds while the map draws only what is switched on. Closing an eye
@@ -1361,7 +1366,18 @@ export class MapStore {
   }
 
   private enqueueGeocoding(): void {
-    if (this.sourcesLoaded && !this.disposed) this.geocoding.update(this.indexEntries, this.pinSources, this.settings())
+    if (this.sourcesLoaded && !this.disposed) this.geocoding.update(this.pinsEnabled ? this.indexEntries : [], this.pinsEnabled ? this.pinSources : [], this.settings())
+  }
+
+  /** Follow the Map pins switch: off clears every note pin, stops geocoding and leaves the Map pins tab. */
+  private syncPinsEnabled(): void {
+    const enabled = resolveSettings(this.api.settings.get()).pinsEnabled
+    if (enabled === this.pinsEnabled || this.disposed) return
+    this.pinsEnabled = enabled
+    if (!enabled && this.panelTab === 'pins') { this.panelTab = 'search'; this.markSession() }
+    this.refreshDerived()
+    this.enqueueGeocoding()
+    this.emit()
   }
 
   /** Fit the map to a source's pins (opening the map tab if needed), making the

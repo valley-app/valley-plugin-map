@@ -546,5 +546,8 @@
   "plugins.enable": "Activar {{p0}} en Mapa",
   "plugins.disable": "Desactivar {{p0}} en Mapa",
   "plugins.configure": "Configurar {{p0}}",
-  "settings.zoomReset": "Restablecer el zoom predeterminado"
+  "settings.zoomReset": "Restablecer el zoom predeterminado",
+  "pins.featureTitle": "Notas",
+  "pins.featureDescription": "Fija notas en el mapa según sus propiedades, con la pestaña Pines del mapa en la barra lateral y su propia página de ajustes.",
+  "pins.featureToggle": "Activar pines del mapa"
 }

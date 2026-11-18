@@ -73,13 +73,20 @@
       "storage": [
         ".valley/plugins/data/map/",
         ".valley/assets/icons/map-icon/"
-      ]
+      ],
+      "visibleWhenSetting": "pinsEnabled"
     },
     {
-      "id": "plugins",
-      "label": "Plugins",
-      "labelKey": "plugin.map.section.plugins",
-      "icon": "blocks"
+      "id": "embed",
+      "label": "Embed",
+      "labelKey": "embed.embed",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M3%209h18%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2212%22%20width%3D%227%22%20height%3D%226%22%20rx%3D%221%22%2F%3E%3C%2Fsvg%3E"
+    },
+    {
+      "id": "codeBlock",
+      "label": "Codeblock",
+      "labelKey": "embed.codeBlock",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22m9%209-3%203%203%203m6-6%203%203-3%203m-2-7-2%208%22%2F%3E%3C%2Fsvg%3E"
     },
     {
       "id": "mapbox",
@@ -96,16 +103,10 @@
       "labelKey": "auto.0a6ca730cc23"
     },
     {
-      "id": "embed",
-      "label": "Embed",
-      "labelKey": "embed.embed",
-      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M3%209h18%22%2F%3E%3Crect%20x%3D%2211%22%20y%3D%2212%22%20width%3D%227%22%20height%3D%226%22%20rx%3D%221%22%2F%3E%3C%2Fsvg%3E"
-    },
-    {
-      "id": "codeBlock",
-      "label": "Codeblock",
-      "labelKey": "embed.codeBlock",
-      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22m9%209-3%203%203%203m6-6%203%203-3%203m-2-7-2%208%22%2F%3E%3C%2Fsvg%3E"
+      "id": "plugins",
+      "label": "Plugins",
+      "labelKey": "plugin.map.section.plugins",
+      "icon": "blocks"
     }
   ],
   "settingsSchema": {
@@ -132,6 +133,13 @@
         "min": 0,
         "max": 25,
         "labelKey": "auto.84a3f17b629e"
+      },
+      {
+        "key": "pinsEnabled",
+        "label": "Map pins",
+        "type": "boolean",
+        "default": true,
+        "labelKey": "auto.adc1a3bbeae6"
       },
       {
         "key": "mapboxEnabled",
