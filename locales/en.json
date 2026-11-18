@@ -549,5 +549,17 @@
   "settings.zoomReset": "Reset default zoom",
   "pins.featureTitle": "Notes",
   "pins.featureDescription": "Pin notes on the map by their properties, with the Map pins tab in the sidebar and its own settings page.",
-  "pins.featureToggle": "Enable Map pins"
+  "pins.featureToggle": "Enable Map pins",
+  "contacts.title": "Contacts",
+  "contacts.eye.hideAll": "Hide all contacts on the map",
+  "contacts.eye.showAll": "Show all contacts on the map",
+  "contacts.search": "Search contacts",
+  "contacts.empty": "No contacts yet. The Contacts plugin lists the cards of its folder.",
+  "contacts.noMatch": "No contact matches",
+  "contacts.noAddress": "No address",
+  "contacts.notLocated": "Not located yet",
+  "contacts.addresses": "{{count}} addresses",
+  "contacts.menu.focus": "Show on map",
+  "contacts.menu.solo": "Show only this contact",
+  "contacts.menu.open": "Open in Contacts"
 }

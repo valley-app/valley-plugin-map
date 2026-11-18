@@ -49,7 +49,7 @@ function sleep(milliseconds: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-function* addresses(entries: readonly IndexEntry[], sources: readonly PinSource[]): Generator<string | null> {
+function* addresses(entries: readonly IndexEntry[], sources: readonly PinSource[], extra: readonly string[] = []): Generator<string | null> {
   for (const source of sources) {
     if (source.hidden || !source.visible) continue
     for (let start = 0; start < entries.length; start += 256) {
@@ -60,6 +60,8 @@ function* addresses(entries: readonly IndexEntry[], sources: readonly PinSource[
       yield null
     }
   }
+  // Addresses of other plugins' items the map shows, such as contacts (18 Nov).
+  for (const address of extra) if (address && bytes(address) <= 2048) yield address
 }
 
 export function createBackgroundGeocoding(ports: GeocodingPorts) {
@@ -70,7 +72,7 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
   let loaded = false
   let disposed = false
   let generation = 0
-  let current: { entries: readonly IndexEntry[]; sources: readonly PinSource[]; settings: MapSettings; provider: string; generation: number } | null = null
+  let current: { entries: readonly IndexEntry[]; sources: readonly PinSource[]; extra: readonly string[]; settings: MapSettings; provider: string; generation: number } | null = null
   let controller: AbortController | null = null
   let running: Promise<void> | null = null
   let stopping: Promise<void> | null = null
@@ -159,7 +161,7 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
       for (const id of expired) cache.delete(id)
       cacheBytes = measure(cache)
     }
-    const iterator = addresses(job.entries, job.sources)
+    const iterator = addresses(job.entries, job.sources, job.extra)
     const queue: Array<{ address: string; key: string }> = []
     const fill = async (): Promise<void> => {
       const keys = new Set(queue.map(item => item.key))
@@ -241,9 +243,9 @@ export function createBackgroundGeocoding(ports: GeocodingPorts) {
     return stopping
   }
   return {
-    update(entries: readonly IndexEntry[], sources: readonly PinSource[], settings: MapSettings): void {
+    update(entries: readonly IndexEntry[], sources: readonly PinSource[], settings: MapSettings, extra: readonly string[] = []): void {
       if (disposed || stopping) return
-      current = { entries, sources, settings: { ...settings }, provider: searchProviderIdentity(settings), generation: ++generation }
+      current = { entries, sources, extra: [...extra], settings: { ...settings }, provider: searchProviderIdentity(settings), generation: ++generation }
       controller?.abort()
       start()
     },

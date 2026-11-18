@@ -513,6 +513,31 @@
         "default": false
       },
       {
+        "key": "hiddenContacts",
+        "label": "Contacts hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "default": []
+      },
+      {
+        "key": "contactsHidden",
+        "label": "All contacts hidden on the map",
+        "type": "custom",
+        "settingsVisible": false,
+        "schema": {
+          "type": "boolean"
+        },
+        "default": false
+      },
+      {
         "key": "mapViewState",
         "label": "Map view state",
         "type": "custom",
@@ -3549,6 +3574,12 @@
   "consumes": [
     {
       "id": "map.sidebarTab",
+      "kind": "extension",
+      "range": "^1.0.0",
+      "optional": true
+    },
+    {
+      "id": "contacts.places",
       "kind": "extension",
       "range": "^1.0.0",
       "optional": true

@@ -250,6 +250,11 @@ export const UserSettings = (p: IconProps): ReactElement => (
   </svg>
 )
 
+/** Contacts — the Contacts tab (people and their addresses, 18 Nov). */
+export const Users = (p: IconProps): ReactElement => (
+  <Svg {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9" /><path d="M16 3.1a4 4 0 0 1 0 7.8" /></Svg>
+)
+
 export const Eye = (p: IconProps): ReactElement => (
   <Svg {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Svg>
 )

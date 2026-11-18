@@ -52,6 +52,8 @@ import { planRoute, RouteProblem, routeProblemReason, type RouteProblemReason } 
 import { computeElevationProfile } from './elevation'
 import { api as runtimeApi, initRuntime, captureMapRenderOwner, type MapRenderOwner } from './runtime'
 import { haversineMeters, isValidLngLat } from './geo'
+import { CONTACT_PLACES_V1, type ContactPlaceEntry, type ContactPlaces } from './contactPlacesContract'
+import { buildContactPins, contactVisible, normalizeContactEntries, pendingContactAddresses } from './contactPins'
 
 const PLACES_DATASET = 'places'
 const ROUTES_DATASET = 'routes'
@@ -106,7 +108,7 @@ function sameUnits(a: ValleyUnits, b: ValleyUnits): boolean {
 }
 
 /** Literal unions a restored session record is narrowed against. */
-const PANEL_TABS: PanelTab[] = ['search', 'places', 'routes', 'pins']
+const PANEL_TABS: PanelTab[] = ['search', 'places', 'routes', 'pins', 'contacts']
 const isPanelTab = (value: unknown): value is PanelTab => typeof value === 'string' && (PANEL_TABS.includes(value as PanelTab) || /^extension:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(value))
 const TRAVEL_MODES: TravelMode[] = ['driving', 'walking', 'cycling']
 /** Stops closer together than this are one place: there is nothing to route between them. */
@@ -378,6 +380,12 @@ export interface MapSnapshot {
   sourcePinList: NotePin[]
   /** How many pins each source holds — independent of its eye toggle. */
   sourcePinCounts: Record<string, number>
+  /** Whether Contacts provides `contacts.places`: the Contacts tab shows only then. */
+  contactsAvailable: boolean
+  /** Every contact Contacts lists, with or without an address. */
+  contacts: ContactPlaceEntry[]
+  /** Every located contact address as a pin, closed eyes included. */
+  contactPinList: NotePin[]
   plannerWaypoints: Waypoint[]
   plannerMode: TravelMode
   plan: RoutePlan | null
@@ -477,6 +485,10 @@ export class MapStore {
   /** Per-source pin totals, counted before the visibility filter. */
   private sourcePinCounts: Record<string, number> = {}
   private sourcePinList: NotePin[] = []
+  private contactProvider: ContactPlaces | null = null
+  private contacts: ContactPlaceEntry[] = []
+  private contactPinList: NotePin[] = []
+  private offContacts: (() => void) | null = null
   private geocache: GeoCache = new Map()
   private geocoding: ReturnType<typeof createBackgroundGeocoding>
   private matchSig = ''
@@ -604,7 +616,8 @@ export class MapStore {
     })
     this.offIcons = subscribeMapIcons(() => { this.refreshDerived(); this.pushPlaces(); this.emit() }, api)
     this.pinsEnabled = resolveSettings(this.api.settings.get()).pinsEnabled
-    this.offSettings = this.api.settings.subscribe(() => { this.syncPinsEnabled(); this.refreshRequestProviders(); void this.refreshMapProviders(); this.pushPlaces(); this.pushRoutes() })
+    this.offSettings = this.api.settings.subscribe(() => { this.syncPinsEnabled(); this.refreshRequestProviders(); void this.refreshMapProviders(); this.pushPlaces(); this.pushRoutes(); this.pushSourcePins() })
+    this.watchContacts()
     void this.refreshMapProviders()
     try {
       this.watchSourcesChanged()
@@ -696,6 +709,9 @@ export class MapStore {
       sourcePins: this.sourcePins,
       sourcePinList: this.sourcePinList,
       sourcePinCounts: this.sourcePinCounts,
+      contactsAvailable: this.contactProvider !== null,
+      contacts: this.contacts,
+      contactPinList: this.contactPinList,
       plannerWaypoints: this.plannerWaypoints,
       plannerMode: this.plannerMode,
       plan: this.plan,
@@ -1361,12 +1377,84 @@ export class MapStore {
     const claimed = new Set(all.map((p) => p.relPath))
     const eyesClosed = this.pinSources.some((s) => !s.hidden) && shown.size === 0
     this.pins = eyesClosed ? [] : parseGeoPins(entries).filter((p) => !claimed.has(p.relPath))
-    this.engine?.setSourcePins(this.sourcePins)
+    this.contactPinList = buildContactPins(this.contacts, this.geocache).map(pin => ({ ...pin, iconSvg: mapIconSvg(pin.icon, this.api) }))
+    this.pushSourcePins()
     this.engine?.setPins(this.pins)
   }
 
+  /** Note-source pins plus the pins of contacts whose eye is open, as one marker layer. */
+  private pushSourcePins(): void {
+    const settings = this.api.settings.get()
+    const allHidden = settings.contactsHidden === true
+    const hidden = stringList(settings.hiddenContacts)
+    const key = JSON.stringify([allHidden, hidden])
+    if (key !== this.contactVisibilityKey) {
+      // An eye that opened may reveal addresses nobody located yet.
+      const opened = this.contactVisibilityKey !== ''
+      this.contactVisibilityKey = key
+      if (opened) this.enqueueGeocoding()
+    }
+    this.engine?.setSourcePins([...this.sourcePins, ...this.contactPinList.filter(pin => contactVisible(pin.relPath, allHidden, hidden))])
+  }
+  private contactVisibilityKey = ''
+
+  // ---- contacts (`contacts.places`, 18 Nov) ---------------------------------
+
+  /** Follows the Contacts plugin's `contacts.places`: its arrival, its snapshots and its going away. */
+  private watchContacts(): void {
+    let offSnapshot: (() => void) | null = null
+    const read = (): void => {
+      if (this.disposed) return
+      this.contacts = this.contactProvider ? normalizeContactEntries(this.contactProvider.getSnapshot()) : []
+      this.refreshDerived()
+      this.enqueueGeocoding()
+      this.emit()
+    }
+    const attach = (): void => {
+      const provider = this.api.interop.extensions.providers(CONTACT_PLACES_V1)[0]?.extension ?? null
+      if (provider === this.contactProvider) return
+      offSnapshot?.()
+      offSnapshot = null
+      this.contactProvider = provider
+      if (provider) {
+        try { offSnapshot = provider.subscribe(read) } catch { offSnapshot = null }
+      }
+      read()
+    }
+    const offProviders = this.api.interop.extensions.subscribe(CONTACT_PLACES_V1, attach)
+    attach()
+    this.offContacts = () => { offProviders(); offSnapshot?.(); offSnapshot = null; this.contactProvider = null }
+  }
+
+  /** Opens a contact in Contacts. */
+  openContact(id: string, newTab = false): void {
+    const provider = this.contactProvider
+    if (!provider) return
+    void provider.open(id, { newTab }).catch(error => console.error('[map] could not open the contact', readableError(error)))
+  }
+
+  /** Fits the map to a contact's located addresses, opening its eye first. */
+  focusContact(id: string): void {
+    const settings = this.api.settings.get()
+    const hidden = stringList(settings.hiddenContacts)
+    if (settings.contactsHidden === true) void this.api.settings.set('contactsHidden', false)
+    if (hidden.includes(id)) void this.api.settings.set('hiddenContacts', hidden.filter(entry => entry !== id))
+    const coords = this.contactPinList.filter(pin => pin.relPath === id).map(pin => [pin.lng, pin.lat] as LngLat)
+    if (!coords.length) return
+    if (this.engine) { if (coords.length === 1) this.engine.flyTo(coords[0], 15); else this.engine.fitTo(coords) }
+    else {
+      this.pendingFocus = { center: coords[0] }
+      this.api.workspace.openMainTab()
+    }
+  }
+
   private enqueueGeocoding(): void {
-    if (this.sourcesLoaded && !this.disposed) this.geocoding.update(this.pinsEnabled ? this.indexEntries : [], this.pinsEnabled ? this.pinSources : [], this.settings())
+    if (!this.sourcesLoaded || this.disposed) return
+    const settings = this.api.settings.get()
+    const hidden = stringList(settings.hiddenContacts)
+    // Contacts' typed addresses are located whether or not note pins are switched on (18 Nov).
+    const extra = pendingContactAddresses(this.contacts, id => contactVisible(id, settings.contactsHidden === true, hidden), this.geocache)
+    this.geocoding.update(this.pinsEnabled ? this.indexEntries : [], this.pinsEnabled ? this.pinSources : [], this.settings(), extra)
   }
 
   /** Follow the Map pins switch: off clears every note pin, stops geocoding and leaves the Map pins tab. */
@@ -1441,7 +1529,7 @@ export class MapStore {
     this.pushPlaces()
     this.pushRoutes()
     engine.setPins(this.pins)
-    engine.setSourcePins(this.sourcePins)
+    this.pushSourcePins()
     engine.setWaypoints(shownWaypoints(this.plannerWaypoints))
     if (this.plan) engine.setRoute(this.plan.geometry)
     engine.setSearchMarker(this.searchMarker)
@@ -2373,6 +2461,7 @@ export class MapStore {
     this.offIcons?.()
     this.offState?.()
     this.offSourcesChanged?.()
+    this.offContacts?.()
     this.listeners.clear()
     this.engine = null
     this.disposal = Promise.allSettled([this.index.dispose(), geocoding, requests, this.hydration, this.viewWrite, this.sessionWrite, this.pinSourcesWrite, this.renderOwner.dispose()]).then(results => {

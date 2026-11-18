@@ -53,7 +53,7 @@ export interface LiveLocation {
 export type LocationStatus = 'off' | 'locating' | 'active' | 'denied' | 'error'
 
 /** Which icon tab the left-sidebar panel shows. */
-export type PanelTab = 'search' | 'places' | 'routes' | 'pins' | `extension:${string}:${string}`
+export type PanelTab = 'search' | 'places' | 'routes' | 'pins' | 'contacts' | `extension:${string}:${string}`
 
 /** A saved point of interest. */
 export interface Place {

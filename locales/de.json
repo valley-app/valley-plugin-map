@@ -549,5 +549,17 @@
   "settings.zoomReset": "Standardzoom zurücksetzen",
   "pins.featureTitle": "Notizen",
   "pins.featureDescription": "Setzt Notizen anhand ihrer Eigenschaften als Pins auf die Karte, mit dem Tab Karten-Pins in der Seitenleiste und einer eigenen Einstellungsseite.",
-  "pins.featureToggle": "Karten-Pins aktivieren"
+  "pins.featureToggle": "Karten-Pins aktivieren",
+  "contacts.title": "Kontakte",
+  "contacts.eye.hideAll": "Alle Kontakte auf der Karte ausblenden",
+  "contacts.eye.showAll": "Alle Kontakte auf der Karte zeigen",
+  "contacts.search": "Kontakte suchen",
+  "contacts.empty": "Noch keine Kontakte. Das Kontakte-Plugin listet die Karten seines Ordners.",
+  "contacts.noMatch": "Kein Kontakt passt",
+  "contacts.noAddress": "Keine Adresse",
+  "contacts.notLocated": "Noch nicht gefunden",
+  "contacts.addresses": "{{count}} Adressen",
+  "contacts.menu.focus": "Auf der Karte zeigen",
+  "contacts.menu.solo": "Nur diesen Kontakt zeigen",
+  "contacts.menu.open": "In Kontakte öffnen"
 }

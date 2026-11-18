@@ -30,6 +30,10 @@ Settings and the left sidebar share the saved source order; drag the grips or us
 
 Pin artwork lives in `.valley/assets/icons/map-icon/`. The eight bundled SVGs are added only when missing, preserving user edits. Add your own SVG files there, then choose them with the source's icon button. The searchable picker offers Open icon folder and Refresh; SVG edits update the sidebar and map pins. Invalid SVGs are reported and executable or external SVG content is removed before rendering.
 
+## Contacts
+
+With the Contacts plugin installed, the sidebar's Contacts tab lists every contact with its addresses. Each has an eye; the bar's eye hides or shows them all. Contacts whose eye is closed or whose address is not located yet are greyed out. Addresses picked from a suggestion in Contacts are placed at once; typed addresses are located by Map's address search like note pins. A click shows the contact on the map, a double click opens it in Contacts.
+
 ## Package
 
 - `manifest.json`: readable English identity, version, and paired `author` / `authorUrl` arrays.

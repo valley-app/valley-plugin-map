@@ -14,7 +14,8 @@ export const Panel: FC = () => {
   // Child effects run first: the field has taken focus by now, so a later remount must not take it again.
   React.useEffect(() => { if (searchFocus) setSearchFocus(0) }, [searchFocus])
   if (!store) return null
-  const builtInTabs = snap.pinsEnabled ? BUILT_IN_TABS : BUILT_IN_TABS.filter(tab => tab.id !== 'pins')
+  // Map pins only while switched on; Contacts only while the Contacts plugin provides `contacts.places` (18 Nov).
+  const builtInTabs = BUILT_IN_TABS.filter(tab => (tab.id !== 'pins' || snap.pinsEnabled) && (tab.id !== 'contacts' || snap.contactsAvailable))
   const extension = extensions.find(entry => entry.id === snap.panelTab)
   const active = extension || builtInTabs.some(tab => tab.id === snap.panelTab) ? snap.panelTab : 'search'
   const builtIn = builtInTabs.find(tab => tab.id === active)

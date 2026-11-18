@@ -549,5 +549,17 @@
   "settings.zoomReset": "Réinitialiser le zoom par défaut",
   "pins.featureTitle": "Notes",
   "pins.featureDescription": "Épingle les notes sur la carte selon leurs propriétés, avec l’onglet Épingles de carte dans la barre latérale et sa propre page de réglages.",
-  "pins.featureToggle": "Activer les épingles de carte"
+  "pins.featureToggle": "Activer les épingles de carte",
+  "contacts.title": "Contacts",
+  "contacts.eye.hideAll": "Masquer tous les contacts sur la carte",
+  "contacts.eye.showAll": "Afficher tous les contacts sur la carte",
+  "contacts.search": "Rechercher des contacts",
+  "contacts.empty": "Aucun contact pour l'instant. Le plugin Contacts liste les fiches de son dossier.",
+  "contacts.noMatch": "Aucun contact ne correspond",
+  "contacts.noAddress": "Aucune adresse",
+  "contacts.notLocated": "Pas encore localisé",
+  "contacts.addresses": "{{count}} adresses",
+  "contacts.menu.focus": "Afficher sur la carte",
+  "contacts.menu.solo": "Afficher seulement ce contact",
+  "contacts.menu.open": "Ouvrir dans Contacts"
 }

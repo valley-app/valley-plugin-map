@@ -549,5 +549,17 @@
   "settings.zoomReset": "重置默认缩放",
   "pins.featureTitle": "笔记",
   "pins.featureDescription": "根据属性将笔记作为图钉放到地图上，并在侧边栏中提供地图图钉标签页和单独的设置页面。",
-  "pins.featureToggle": "启用地图图钉"
+  "pins.featureToggle": "启用地图图钉",
+  "contacts.title": "联系人",
+  "contacts.eye.hideAll": "在地图上隐藏所有联系人",
+  "contacts.eye.showAll": "在地图上显示所有联系人",
+  "contacts.search": "搜索联系人",
+  "contacts.empty": "还没有联系人。联系人插件会列出其文件夹中的名片。",
+  "contacts.noMatch": "没有匹配的联系人",
+  "contacts.noAddress": "没有地址",
+  "contacts.notLocated": "尚未定位",
+  "contacts.addresses": "{{count}} 个地址",
+  "contacts.menu.focus": "在地图上显示",
+  "contacts.menu.solo": "只显示此联系人",
+  "contacts.menu.open": "在联系人中打开"
 }

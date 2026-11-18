@@ -474,6 +474,13 @@ button.map-place-sub, button.map-place-coords { align-self:flex-start; }
 .map-pin-badge.is-small { flex-basis:14px; width:14px; height:14px; }
 .map-pin-badge.is-small svg { width:8px; height:8px; }
 .map-tree-row.is-hidden > .map-pin-badge { opacity:.45; }
+/* Contacts tab (18 Nov): a 24px avatar, the photo or initials on the group colour; greyed out like a closed eye. */
+.map-contact-avatar { display:grid; place-items:center; flex:0 0 24px; width:24px; height:24px; overflow:hidden; border-radius:50%;
+  background:var(--badge-fill); color:#fff; font-size:0.625rem; font-weight:var(--font-semi-bold, 600); text-transform:uppercase; }
+.map-contact-avatar img { width:100%; height:100%; object-fit:cover; }
+.map-tree-row.is-hidden > .map-contact-avatar { opacity:.45; filter:grayscale(1); }
+.map-contact-row .map-row-sub { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-row-eye:disabled { opacity:.35; cursor:default; }
 /* ---- favourite places tree: folders, one subfolder level, places ---- */
 .map-place-tree { position:relative; min-height:40px; padding-bottom:24px; }
 .map-tree-row { position:relative; padding-left:calc(6px + var(--map-tree-depth, 0) * 16px); }

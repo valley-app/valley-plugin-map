@@ -549,5 +549,17 @@
   "settings.zoomReset": "Restablecer el zoom predeterminado",
   "pins.featureTitle": "Notas",
   "pins.featureDescription": "Fija notas en el mapa según sus propiedades, con la pestaña Pines del mapa en la barra lateral y su propia página de ajustes.",
-  "pins.featureToggle": "Activar pines del mapa"
+  "pins.featureToggle": "Activar pines del mapa",
+  "contacts.title": "Contactos",
+  "contacts.eye.hideAll": "Ocultar todos los contactos en el mapa",
+  "contacts.eye.showAll": "Mostrar todos los contactos en el mapa",
+  "contacts.search": "Buscar contactos",
+  "contacts.empty": "Aún no hay contactos. El plugin Contactos lista las fichas de su carpeta.",
+  "contacts.noMatch": "Ningún contacto coincide",
+  "contacts.noAddress": "Sin dirección",
+  "contacts.notLocated": "Aún sin localizar",
+  "contacts.addresses": "{{count}} direcciones",
+  "contacts.menu.focus": "Mostrar en el mapa",
+  "contacts.menu.solo": "Mostrar solo este contacto",
+  "contacts.menu.open": "Abrir en Contactos"
 }
