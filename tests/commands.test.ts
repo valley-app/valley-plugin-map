@@ -165,6 +165,17 @@ describe('mapbox commands', () => {
     expect(h.store.buildSurfaceState()).toMatchObject({ savedRouteId: null, selectedSourceId: null })
   })
 
+  it('restores the sidebar tab only from the left sidebar\'s own state, never from a saved Map page or right sidebar', async () => {
+    const surfaceOf = (slot: string) => h.api.interop.extensions.providers(PLUGIN_SURFACE_V1).find(({ extension }) => extension.surface === slot)!.extension
+    h.store.setPanelTab('routes')
+    await surfaceOf('main_workspace').restore({ ...h.store.buildSurfaceState(), panelTab: 'search' }, undefined, { background: true })
+    expect(h.store.getSnapshot().panelTab).toBe('routes')
+    await surfaceOf('right_sidebar').restore({ ...h.store.buildSurfaceState(), panelTab: 'search' }, undefined, { background: true })
+    expect(h.store.getSnapshot().panelTab).toBe('routes')
+    await surfaceOf('left_sidebar').restore({ ...h.store.buildSurfaceState(), panelTab: 'places' }, undefined, { background: true })
+    expect(h.store.getSnapshot().panelTab).toBe('places')
+  })
+
   it('restores a saved route without requesting routing or opening another panel', async () => {
     const surface = h.api.interop.extensions.providers(PLUGIN_SURFACE_V1).find(({ extension }) => extension.surface === 'right_sidebar')!.extension
     await surface.restore({ savedRouteId: seededRoute.id }, undefined, { background: true })

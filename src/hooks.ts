@@ -15,6 +15,7 @@ const EMPTY: MapSnapshot = {
   contactsAvailable: false,
   contacts: [],
   contactPinList: [],
+  contactsIcon: null,
   plannerWaypoints: [],
   plannerMode: 'driving',
   plan: null,

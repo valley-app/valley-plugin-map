@@ -6,8 +6,12 @@ import { resolveInteropContract, type InteropContract } from '@valley/plugin-sdk
  * new key optional.
  */
 
-/** One address of a contact. `lat`/`lng` are present when the address was picked from a suggestion. */
-export type ContactPlaceAddress = { label?: string; text: string; lat?: number; lng?: number }
+/**
+ * One address of a contact. `lat`/`lng` are present when the address was picked from a suggestion; `color` and
+ * `iconSvg` are its label's look from Contacts settings (19 Nov): a palette reference or hex colour, and sanitized SVG
+ * markup a consumer sanitizes again before drawing it.
+ */
+export type ContactPlaceAddress = { label?: string; text: string; lat?: number; lng?: number; color?: string; iconSvg?: string }
 
 /** A contact as a map lists it. `color` is the first group's palette reference or hex colour. */
 export type ContactPlaceEntry = {
@@ -26,6 +30,8 @@ export type ContactPlacesSnapshot = { revision: number; contacts: ContactPlaceEn
 
 export interface ContactPlaces {
   id: string
+  /** The provider's own glyph (one path, filled with currentColor), for a map's tab (18 Nov). */
+  icon?: { viewBox: string; path: string }
   getSnapshot(): ContactPlacesSnapshot
   subscribe(listener: () => void): () => void
   /** Opens the contact in Contacts. */
@@ -33,14 +39,16 @@ export interface ContactPlaces {
 }
 
 /** Upper bounds a consumer enforces on a snapshot. */
-export const CONTACT_PLACES_LIMITS = { contacts: 5000, places: 16, text: 512 } as const
+export const CONTACT_PLACES_LIMITS = { contacts: 5000, places: 16, text: 512, iconSvg: 8192 } as const
 
 export const CONTACT_PLACES_V1 = resolveInteropContract({
   id: 'contacts.places', kind: 'extension', version: '1.0.0', cardinality: 'many',
   wire: {
     identityKeys: ['id'],
     value: { type: 'object', required: ['id', 'getSnapshot', 'subscribe', 'open'], properties: {
-      id: { type: 'string' }, getSnapshot: { type: 'function' }, subscribe: { type: 'function' }, open: { type: 'function' }
+      id: { type: 'string' },
+      icon: { type: 'object', required: ['viewBox', 'path'], properties: { viewBox: { type: 'string' }, path: { type: 'string' } } },
+      getSnapshot: { type: 'function' }, subscribe: { type: 'function' }, open: { type: 'function' }
     } }
   }
 }) as InteropContract<ContactPlaces, 'extension'>

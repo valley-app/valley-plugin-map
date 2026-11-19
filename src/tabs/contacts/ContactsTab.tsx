@@ -5,7 +5,7 @@ import { useMap } from '../../hooks'
 import { menuTarget, strings, useSetting } from '../shared/tree'
 import { uiText } from '../../localization'
 import type { ContactPlaceEntry } from '../../contactPlacesContract'
-import { CONTACT_PIN_COLOR, CONTACT_PIN_SOURCE, contactPinIcon, contactVisible } from '../../contactPins'
+import { CONTACT_PIN_COLOR, CONTACT_PIN_SOURCE, contactAddressLine, contactPinIcon, contactVisible } from '../../contactPins'
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Crosshair, Eye, EyeOff, MoreHorizontal, PinGlyph, Search, ValleyIcon, X } from '../../icons'
 
 /** The contact's photo, else its initials on a disc in its group's colour. */
@@ -110,10 +110,12 @@ export const ContactsTab: FC = () => {
           const visible = contactVisible(entry.id, allHidden, hidden)
           const expanded = entry.places.length > 1 && open.includes(entry.id)
           const first = entry.places[0]
+          // The address says what it is: Home · Farnweg 3, or Home · Work for several (18 Nov).
+          const labels = [...new Set(entry.places.map(place => place.label).filter((label): label is string => Boolean(label)))]
           const sub = !entry.places.length ? uiText('contacts.noAddress')
-            : !count ? uiText('contacts.notLocated')
-            : entry.places.length > 1 ? uiText('contacts.addresses', { count: entry.places.length })
-            : first.text
+            : entry.places.length > 1 ? (labels.length ? labels.join(' · ') : uiText('contacts.addresses', { count: entry.places.length }))
+            : contactAddressLine(first)
+          const pending = entry.places.length > 0 && !count
           const label = entry.name
           const row = (
             <div key={entry.id} role="listitem" tabIndex={0} aria-expanded={entry.places.length > 1 ? expanded : undefined}
@@ -135,7 +137,7 @@ export const ContactsTab: FC = () => {
               <Avatar entry={entry} />
               <span className="map-row-meta">
                 <span className="map-row-title">{label}</span>
-                <span className="map-row-sub">{sub}</span>
+                <span className="map-row-sub">{sub}{pending && ` · ${uiText('contacts.notLocated')}`}</span>
               </span>
               <button type="button" className={`map-row-action map-row-eye${visible ? '' : ' is-off'}`} aria-pressed={visible} disabled={!entry.places.length}
                 title={entry.places.length ? uiText(visible ? 'places.eye.hide' : 'places.eye.show', { name: label }) : uiText('contacts.noAddress')}
@@ -160,7 +162,9 @@ export const ContactsTab: FC = () => {
                 onDoubleClick={() => store.openContact(entry.id)}
                 onKeyDown={event => { if (event.key === 'Enter' && point) store.focus([point.lng, point.lat], 16) }}>
                 <span className="map-tree-slot" />
-                <span className="map-pin-badge is-small" style={{ ['--badge-fill' as string]: paletteCssValue(entry.color || CONTACT_PIN_COLOR) }}><PinGlyph id={contactPinIcon(place.label)} /></span>
+                <span className="map-pin-badge is-small" style={{ ['--badge-fill' as string]: paletteCssValue(place.color || entry.color || CONTACT_PIN_COLOR) }}>
+                  {place.iconSvg ? <span className="map-contact-label-glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: place.iconSvg }} /> : <PinGlyph id={contactPinIcon(place.label)} />}
+                </span>
                 <span className="map-row-meta">
                   <span className="map-row-title">{place.label || place.text}</span>
                   {place.label && <span className="map-row-sub">{point ? place.text : `${place.text} · ${uiText('contacts.notLocated')}`}</span>}

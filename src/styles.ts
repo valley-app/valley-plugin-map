@@ -479,6 +479,8 @@ button.map-place-sub, button.map-place-coords { align-self:flex-start; }
   background:var(--badge-fill); color:#fff; font-size:0.625rem; font-weight:var(--font-semi-bold, 600); text-transform:uppercase; }
 .map-contact-avatar img { width:100%; height:100%; object-fit:cover; }
 .map-tree-row.is-hidden > .map-contact-avatar { opacity:.45; filter:grayscale(1); }
+.map-contact-label-glyph { display:grid; place-items:center; width:100%; height:100%; }
+.map-contact-label-glyph svg { width:8px; height:8px; }
 .map-contact-row .map-row-sub { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .map-row-eye:disabled { opacity:.35; cursor:default; }
 /* ---- favourite places tree: folders, one subfolder level, places ---- */

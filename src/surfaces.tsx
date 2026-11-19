@@ -424,7 +424,13 @@ export function registerMapSurfaces(pluginApi: ValleyPluginApi): () => void {
         if (!await pluginApi.realm.fileInfo(raw.path)) throw new Error(uiText('surface.unavailable'))
         restoreMapFileBookmark(raw)
         if (!options?.background) await pluginApi.workspace.openFile(raw.path)
-      } else await store.restoreSurfaceState(raw, options?.background)
+      } else {
+        // The sidebar tab is the left sidebar's own choice: a saved Map page or right-sidebar state carries the tab
+        // that was open when it was captured, and restoring that page (when it mounts again) must not take the
+        // sidebar back to it (18 Nov).
+        const { panelTab: _panelTab, ...rest } = raw
+        await store.restoreSurfaceState(surface === 'left_sidebar' ? raw : rest, options?.background)
+      }
     }
   }, { stateSchema: bookmarkStateSchema, description: snapshot => typeof snapshot.view.path === 'string' ? snapshot.view.path : uiText('bookmark.view'), validate: state => { const camera = state.camera as { lng: number; lat: number; zoom: number; pitch: number } | null; return !camera || isValidLngLat(camera.lng, camera.lat) && camera.zoom >= 0 && camera.zoom <= 24 && camera.pitch >= 0 && camera.pitch <= 85 } }))
   offs.push(pluginApi.interop.extensions.provide(METADATA_PANEL_SEGMENT_V1, { ...mapPanelSegment(({ subject }) => <Properties subject={subject} />), pluginSurfaces: ['main_workspace'], inspect: async ({ subject }) => { await store.ready; return mapPropertyFields(subject) } }))

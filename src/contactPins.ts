@@ -1,5 +1,6 @@
 import { CONTACT_PLACES_LIMITS, type ContactPlaceEntry } from './contactPlacesContract'
 import { isValidLngLat } from './geo'
+import { sanitizePinSvg } from './pinIcons'
 import { normalizeAddress, type GeoCache } from './pinSources'
 import type { NotePin } from './types'
 
@@ -9,6 +10,12 @@ export const CONTACT_PIN_SOURCE = 'contacts'
 export const CONTACT_PIN_COLOR = 'palette:teal'
 
 const str = (value: unknown, max: number): string => typeof value === 'string' ? value.slice(0, max) : ''
+const COLOR = /^(palette:[a-z0-9-]{1,40}|#[0-9a-fA-F]{6})$/
+/** Another plugin's icon markup, sanitized by Map's own rules; dropped when too large or unusable. */
+function safeSvg(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value || value.length > CONTACT_PLACES_LIMITS.iconSvg) return undefined
+  try { return sanitizePinSvg(value) } catch { return undefined }
+}
 const num = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined
 
 /** A provider's snapshot, bounded and with every value checked, so a broken or hostile one cannot break the map. */
@@ -30,7 +37,10 @@ export function normalizeContactEntries(raw: unknown): ContactPlaceEntry[] {
       if (!text) return []
       const lat = num(place.lat), lng = num(place.lng)
       const label = str(place.label, CONTACT_PLACES_LIMITS.text)
-      return [{ text, ...(label ? { label } : {}), ...(lat !== undefined && lng !== undefined && isValidLngLat(lng, lat) ? { lat, lng } : {}) }]
+      // The label's look (19 Nov): a checked colour, and SVG sanitized again here before Map draws it.
+      const color = str(place.color, 64)
+      const iconSvg = safeSvg(place.iconSvg)
+      return [{ text, ...(label ? { label } : {}), ...(lat !== undefined && lng !== undefined && isValidLngLat(lng, lat) ? { lat, lng } : {}), ...(COLOR.test(color) ? { color } : {}), ...(iconSvg ? { iconSvg } : {}) }]
     })
     const subtitle = str(entry.subtitle, CONTACT_PLACES_LIMITS.text)
     const color = str(entry.color, 64)
@@ -46,6 +56,19 @@ export function normalizeContactEntries(raw: unknown): ContactPlaceEntry[] {
     })
   }
   return out
+}
+
+/** A provider's tab glyph, or null when it sends none or a malformed one. */
+export function normalizeContactsIcon(raw: unknown): { viewBox: string; path: string } | null {
+  if (!raw || typeof raw !== 'object') return null
+  const { viewBox, path } = raw as Record<string, unknown>
+  if (typeof viewBox !== 'string' || !/^[\d.\s-]{3,64}$/.test(viewBox) || typeof path !== 'string' || !path || path.length > 8192 || !/^[MmLlHhVvCcSsQqTtAaZz\d.,\s-]+$/.test(path)) return null
+  return { viewBox, path }
+}
+
+/** An address's sub-line in the sidebar: its label first, as in `Home · Farnweg 3`. */
+export function contactAddressLine(place: { label?: string; text: string }): string {
+  return place.label ? `${place.label} · ${place.text}` : place.text
 }
 
 /** The pin glyph an address label suggests: home, work, school, else a person. */
@@ -74,9 +97,10 @@ export function buildContactPins(entries: readonly ContactPlaceEntry[], geocache
       title: entry.name,
       lng: point.lng,
       lat: point.lat,
-      color: entry.color || CONTACT_PIN_COLOR,
+      color: place.color || entry.color || CONTACT_PIN_COLOR,
       borderColor: '#ffffff',
       icon: contactPinIcon(place.label),
+      ...(place.iconSvg ? { iconSvg: place.iconSvg } : {}),
       fields: [...(place.label ? [{ key: place.label, value: place.text }] : [{ key: '', value: place.text }]), ...(entry.subtitle ? [{ key: '', value: entry.subtitle }] : [])]
     }]
   }))

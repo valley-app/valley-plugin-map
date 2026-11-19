@@ -53,7 +53,7 @@ import { computeElevationProfile } from './elevation'
 import { api as runtimeApi, initRuntime, captureMapRenderOwner, type MapRenderOwner } from './runtime'
 import { haversineMeters, isValidLngLat } from './geo'
 import { CONTACT_PLACES_V1, type ContactPlaceEntry, type ContactPlaces } from './contactPlacesContract'
-import { buildContactPins, contactVisible, normalizeContactEntries, pendingContactAddresses } from './contactPins'
+import { buildContactPins, contactVisible, normalizeContactEntries, normalizeContactsIcon, pendingContactAddresses } from './contactPins'
 
 const PLACES_DATASET = 'places'
 const ROUTES_DATASET = 'routes'
@@ -386,6 +386,8 @@ export interface MapSnapshot {
   contacts: ContactPlaceEntry[]
   /** Every located contact address as a pin, closed eyes included. */
   contactPinList: NotePin[]
+  /** The Contacts plugin's own glyph for the Contacts tab, when it sends one. */
+  contactsIcon: { viewBox: string; path: string } | null
   plannerWaypoints: Waypoint[]
   plannerMode: TravelMode
   plan: RoutePlan | null
@@ -488,6 +490,7 @@ export class MapStore {
   private contactProvider: ContactPlaces | null = null
   private contacts: ContactPlaceEntry[] = []
   private contactPinList: NotePin[] = []
+  private contactsIcon: { viewBox: string; path: string } | null = null
   private offContacts: (() => void) | null = null
   private geocache: GeoCache = new Map()
   private geocoding: ReturnType<typeof createBackgroundGeocoding>
@@ -712,6 +715,7 @@ export class MapStore {
       contactsAvailable: this.contactProvider !== null,
       contacts: this.contacts,
       contactPinList: this.contactPinList,
+      contactsIcon: this.contactsIcon,
       plannerWaypoints: this.plannerWaypoints,
       plannerMode: this.plannerMode,
       plan: this.plan,
@@ -1377,7 +1381,7 @@ export class MapStore {
     const claimed = new Set(all.map((p) => p.relPath))
     const eyesClosed = this.pinSources.some((s) => !s.hidden) && shown.size === 0
     this.pins = eyesClosed ? [] : parseGeoPins(entries).filter((p) => !claimed.has(p.relPath))
-    this.contactPinList = buildContactPins(this.contacts, this.geocache).map(pin => ({ ...pin, iconSvg: mapIconSvg(pin.icon, this.api) }))
+    this.contactPinList = buildContactPins(this.contacts, this.geocache).map(pin => ({ ...pin, iconSvg: pin.iconSvg ?? mapIconSvg(pin.icon, this.api) }))
     this.pushSourcePins()
     this.engine?.setPins(this.pins)
   }
@@ -1406,6 +1410,7 @@ export class MapStore {
     const read = (): void => {
       if (this.disposed) return
       this.contacts = this.contactProvider ? normalizeContactEntries(this.contactProvider.getSnapshot()) : []
+      this.contactsIcon = normalizeContactsIcon(this.contactProvider?.icon)
       this.refreshDerived()
       this.enqueueGeocoding()
       this.emit()

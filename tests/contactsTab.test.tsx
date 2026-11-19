@@ -10,7 +10,7 @@ import type { NotePin } from '../src/types'
 import { Panel } from '../src/Panel'
 import { CONTACT_PLACES_V1, type ContactPlaces, type ContactPlacesSnapshot } from '../src/contactPlacesContract'
 import { searchPlacesWithProvider } from '../src/geocode'
-import { buildContactPins, contactPinIcon, contactVisible, normalizeContactEntries, pendingContactAddresses } from '../src/contactPins'
+import { normalizeContactsIcon, contactAddressLine, buildContactPins, contactPinIcon, contactVisible, normalizeContactEntries, pendingContactAddresses } from '../src/contactPins'
 
 vi.mock('../src/geocode', async () => ({
   GeocodeError: class GeocodeError extends Error {},
@@ -30,7 +30,7 @@ const SNAPSHOT: ContactPlacesSnapshot = { revision: 1, contacts: [
 ] }
 
 function provider(snapshot = SNAPSHOT): ContactPlaces & { open: ReturnType<typeof vi.fn> } {
-  return { id: 'contacts', getSnapshot: () => snapshot, subscribe: () => () => {}, open: vi.fn(async () => {}) }
+  return { id: 'contacts', icon: { viewBox: '0 0 512 512', path: 'M256 48C148 48 48 148 48 256z' }, getSnapshot: () => snapshot, subscribe: () => () => {}, open: vi.fn(async () => {}) }
 }
 
 async function renderContacts(settings: Record<string, unknown> = {}, withProvider = true) {
@@ -61,6 +61,21 @@ describe('contact pins', () => {
     expect(entries[1].name).toBe('b')
   })
 
+  it('takes each address\'s label colour and icon, sanitized, for its pin', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 3h18v18H3z" onclick="x()"/><script>alert(1)</script></svg>'
+    const [entry] = normalizeContactEntries({ contacts: [{ id: 'a.vcf', name: 'A', color: 'palette:blue', places: [
+      { label: 'Home', text: 'X', lat: 47, lng: 8, color: 'palette:green', iconSvg: svg },
+      { label: 'Work', text: 'Y', lat: 46, lng: 7, color: 'not a colour', iconSvg: 'x'.repeat(9000) }
+    ] }] })
+    expect(entry.places[0].color).toBe('palette:green')
+    expect(entry.places[0].iconSvg).toContain('<path')
+    expect(entry.places[0].iconSvg).not.toMatch(/script|onclick/)
+    expect(entry.places[1]).not.toHaveProperty('color')
+    expect(entry.places[1]).not.toHaveProperty('iconSvg')
+    const pins = buildContactPins([entry], new Map())
+    expect(pins.map(pin => [pin.color, Boolean(pin.iconSvg)])).toEqual([['palette:green', true], ['palette:blue', false]])
+  })
+
   it('pins picked coordinates at once and typed addresses once the map located them', () => {
     const entries = normalizeContactEntries(SNAPSHOT)
     expect(buildContactPins(entries, new Map()).map(pin => [pin.relPath, pin.sourceId, pin.icon])).toEqual([
@@ -69,6 +84,11 @@ describe('contact pins', () => {
     expect(buildContactPins(entries, geocache)).toHaveLength(3)
     expect(pendingContactAddresses(entries, () => true, new Map())).toEqual(['Moss Lantern Station, Alpine Road 1', 'Nowhere 0'])
     expect(pendingContactAddresses(entries, id => id !== 'People/Aster Fernwood.vcf', new Map())).toEqual([])
+    expect(contactAddressLine({ label: 'Home', text: 'Farnweg 3' })).toBe('Home · Farnweg 3')
+    expect(contactAddressLine({ text: 'Farnweg 3' })).toBe('Farnweg 3')
+    expect(normalizeContactsIcon({ viewBox: '0 0 24 24', path: 'M1 1h2v2z' })).toEqual({ viewBox: '0 0 24 24', path: 'M1 1h2v2z' })
+    expect(normalizeContactsIcon({ viewBox: '0 0 24 24', path: '<script>' })).toBeNull()
+    expect(normalizeContactsIcon(undefined)).toBeNull()
     expect(contactPinIcon('School')).toBe('school')
     expect(contactPinIcon(undefined)).toBe('person')
     expect(contactVisible('x', true, [])).toBe(false)
@@ -82,7 +102,8 @@ describe('Contacts tab', () => {
     expect(screen.queryByRole('tab', { name: 'Contacts' })).toBeNull()
     without.dispose()
     const withIt = await renderContacts()
-    expect(screen.getByRole('tab', { name: 'Contacts' })).toBeTruthy()
+    // The tab wears the Contacts plugin's own icon, sent with the contract.
+    expect(screen.getByRole('tab', { name: 'Contacts' }).querySelector('path')?.getAttribute('d')).toBe('M256 48C148 48 48 148 48 256z')
     withIt.dispose()
   })
 
@@ -95,7 +116,9 @@ describe('Contacts tab', () => {
     expect(within(rows[2]).getByText('No address')).toBeTruthy()
     expect(within(rows[2]).getByRole('button', { name: /Colette Moosbach/ })).toBeDisabled()
     expect(rows[0]).not.toHaveClass('is-hidden')
-    expect(within(rows[0]).getByText('3 addresses')).toBeTruthy()
+    // Each address says what it is: one address reads `Work · Harbor Lab`, several list their labels.
+    expect(within(rows[0]).getByText('Home · Work · Old')).toBeTruthy()
+    expect(within(rows[1]).getByText('Work · Harbor Lab')).toBeTruthy()
     // The typed work address is located by the map's own geocoder and then pinned too.
     await waitFor(() => expect(searchPlacesWithProvider).toHaveBeenCalledWith('Moss Lantern Station, Alpine Road 1', expect.anything(), expect.anything()))
     await waitFor(() => expect(store.getSnapshot().contactPinList).toHaveLength(3))
